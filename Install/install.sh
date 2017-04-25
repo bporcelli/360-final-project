@@ -27,6 +27,10 @@ if [[ "$current_system" == "Ubuntu_10.04" ]]; then
 	libs2intercept=( "/lib/libc.so.6" "/lib/libpthread.so.0" "/lib/tls/i686/cmov/libpthread.so.0" "/lib/tls/i686/cmov/libc.so.6" )
 elif [[ "$current_system" == "Ubuntu_10.10" ]]; then
 	libs2intercept=( "/lib/libc.so.6" "/lib/libpthread.so.0" )
+elif [[ "$current_system" == "Ubuntu_11.04" ]]; then
+	libs2intercept=( "/lib/i386-linux-gnu/libc.so.6" "/lib/i386-linux-gnu/libpthread.so.0" )
+elif [[ "current_system" == "Ubuntu_16.04" ]]; then
+	libs2intercept=( "/lib/i386-linux-gnu/libc.so.6" "/lib/i386-linux-gnu/libpthread.so.0")
 else
 	echo "[Error] Unsupported Distribution: Unable to Determine Libraries to Intercept"
 	exit 1
@@ -35,10 +39,9 @@ fi
 # Get user running this script (also works if running as sudo)
 realUserName=`who | awk '{print $1}'`
 
-# Userids
+# Untrusted Userids
 untrusted_id=1004
 untrustedRoot_id=1005
-
 # Create untrusted user (-u sets userid)
 useradd -u $untrusted_id untrusted
 # Modify untrusted user (-a adds user to group, -G groups user is in)

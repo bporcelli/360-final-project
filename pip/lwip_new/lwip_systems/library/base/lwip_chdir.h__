@@ -1,0 +1,13 @@
+#ifndef __LWIP_CHDIR_H__
+#define __LWIP_CHDIR_H__
+
+#include "lwip_syscall_handler.h"
+
+
+lwip_syscall(chdir, pre);
+lwip_syscall(chdir, post);
+
+lwip_syscall(chdir_l, post);
+
+#endif /* __LWIP_CHDIR_H__ */
+

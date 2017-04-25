@@ -1,0 +1,124 @@
+README
+
+Table of Content
+----------------
+1. Introduction
+2. Limitation/Known Issues
+3. Installation
+4. Quick Start Guide
+4.1 Utilities
+4.2 Generating redirectable file list
+5. Trouble shooting
+6. License
+
+
+1. Introduction
+---------------
+This system protects system integrity against malicious software. It relies on
+classifying intent of software into benign and untrusted. Benign software may
+have vulnerabilities, but do not actively compromise the system
+integrity. Untrusted software, however, may evade any security mechanism 
+deployed on the system to compromise the system integrity. Our goal is preserve
+the system integrity against malicious software.
+
+The system combines userland approach with Discretionary Access Control (DAC)
+mechanism to enforce security policies. It does not rely on kernel, hence it can
+be easily ported across different OSes. 
+
+2. Limitations/Known Issues
+---------------------------
+1. Supported OSes
+We have only tested the system on 32-bit Ubuntu 10.04. The installer released
+does not support 64-bit OSes. 64-bit OSes may be supported in later release via
+glibc patches.
+The system is ported to 32-bit PCBSD 8.0. The code specific to BSD system is
+also included in the release. However, the version is currently not being
+maintained. Users interested in installing the system on BSD system can send
+email to request for information regarding specific installation instructions.
+
+2. No automatic X isolation
+By default, no X isolation is applied. There are two ways to perform X isolation. 
+
+a. To connect a process as untrusted client:
+$ xauth -f /tmp/aaa generate :0.0 . untrusted timeout 3600
+$ XAUTHORITY=/tmp/aaa uudo gedit
+
+b. To connect using nested X:
+$ Xephyr -ac -screen 1280x1024 :1&
+$ DISPLAY=:1 metacity&
+$ DISPLAY=:1 uudo gedit
+
+
+3. Installation
+---------------
+Under 32-bit Ubuntu, the system can be installed with
+cd lwip_installation
+sudo ./install.sh
+
+Please reboot the system after installation.
+
+
+4. Quick Start Guide
+--------------------
+4.1 Utilities
+-------------
+To test if the system is working properly, one can perform the following test:
+$ uudo touch /tmp/lowI
+$ cat /tmp/lowI
+
+If the system is properly installed, the cat command should fail. After that,
+users can try running "uudo bash".
+
+The following utilities are available after installation:
+a. uudo. For transiting from benign user to untrusted user.
+Example: uudo gedit  # will start gedit in untrusted mode
+
+b. ~/replaceLib and ~/restoreLib. For enabling and disabling system protection.
+Example: sudo ~/restoreLib # will restore the original libraries on the system
+                           # such that no policy will be enforced via library.
+
+c. lwip_trusted. For executing a command in trusted mode
+Example: lwip_trusted cat lowI.txt # will allow cat to consume lowI.txt without
+                                   # downgrading.
+
+d. lwip_showLevel. For displaying the integrity level of a file
+Example: lwip_showLevel lowI.txt # will show the integrity of the file lowI.txt 
+
+4.2 Generating redirectable file list
+-------------------------------------
+Please execute genRedirectdb.sh from time to time to update the list of
+redirectable file list for programs.
+
+
+5. Trouble shooting
+-------------------
+(Debug/Violation) Log files
+Log files are created on the Desktop of the current user. 
+"~/Desktop/all2" contains log of all information
+"~/Desktop/highI_violation2" contains log of violation of high integrity
+processes
+
+6. License
+----------
+This software relies on some other sources:
+thpool.c thpool.h https://github.com/Pithikos/C-Thread-Pool
+ac.c ac.h	 	  http://strstrsse.googlecode.com
+strmap.c strmap.h http://pokristensson.com/code/strmap/strmap.c
+list.h		  http://www.mcs.anl.gov/~kazutomo/list/
+
+The license for this software:
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+	

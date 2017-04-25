@@ -1,0 +1,71 @@
+#include "lwip_chdir.h"
+#include "lwip_syscall_handler.h"
+
+#include "lwip_debug.h"
+#include "lwip_utils.h"
+#include "lwip_level.h"
+
+#include "lwip_delegator_connection.h"
+#include <string.h>
+#include <unistd.h>
+
+/*
+lwip_syscall(chdir_l, post) {
+	if (LWIP_ISERRORNO(EACCES)) {
+		lwip_syscall_covert2FullAndRedirectedPath_re(p1_ptr);
+		prepare_variables1(char *, path);
+		LWIP_UNEXPECTED("Untrusted process failed to chdir into dir: %s", path);
+	}
+}
+
+
+lwip_syscall(chdir, pre) {
+	LWIP_SAVE_PARAMETERS_N(1);
+	convert2FullAndRedirectPath(p1_ptr);
+}
+
+lwip_syscall(chdir, post) {
+	prepare_variables1(char *, path);
+
+	if (LWIP_PROCESS_LV_LOW && LWIP_ISERROR && lwip_syscall_errno == EACCES) {
+		LWIP_INFO("Untrusted process failed to chdir to path %s", path);
+
+		if (!lwip_isIN_mode)
+			return;
+
+		del_pkt_prepare_packets(chdir, pkt, response);
+		strncpy(pkt.path, path, PATH_MAX);
+
+		if (LWIP_likely(sh_SEND2DELEGATOR(&pkt) == 0)) {
+			int newfd;
+			if (LWIP_likely(sh_RECVFDFROMDELEGATOR(&response, &newfd) != -1)) {
+				if (response.l_isError) {
+					LWIP_INFO("Delegator also failed to chdir to the path %s: errno: %d", path, response.l_rv);
+					LWIP_SET_SYSCALL_ERROR(response.l_rv);
+				} else {
+					LWIP_INFO("Delegator returned %d on chdir, new fd is %d", response.l_rv, newfd);
+					if (fchdir(newfd)) {
+						LWIP_CRITICAL("Failed to do fchdir!! errno: %d", errno);
+						LWIP_SET_SYSCALL_ERROR(errno);
+					} else {
+						LWIP_INFO("fchdir successfully");
+						LWIP_UNSET_SYSCALL_ERROR(response.l_rv);
+					}
+
+					struct stat buf;
+					if (stat(path, &buf)) {
+						LWIP_ERROR("Failed to stat the path: %s", path);
+						goto out;
+					}
+					LWIP_INFO("Permission of the path %s: %s", path, lwip_util_mode2perms(buf.st_mode));
+					
+out:
+					close(newfd);
+				} 
+			}
+		}
+
+	}
+	return;
+}
+*/

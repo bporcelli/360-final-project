@@ -1,0 +1,204 @@
+Documentation
+-------------
+
+Table of content
+----------------
+1. Introduction
+
+2. Description of the approach
+2.1 Inner sandbox for untrusted processes
+2.2 Outer sandbox for untrusted processes
+2.3 Sandbox for benign processes
+
+3. Policy inference for untrusted processes
+
+
+1. Introduction
+---------------
+The goal of our approach is to protect the integrity of a host while preserving
+normal user experience. We assume that core software installed on the host
+(including the operating system and administrative programs) is benign: it comes
+from trustworthy providers, and preserve host integrity in the absence of
+interference by users or malware. Rest of the software may come from untrusted
+sources, and some of this software may be malicious, i.e., it will seek to evade
+security policies and compromise system security. 
+
+There are mainly two approaches dealing with untrusted software: sandboxing and
+isolation. In sandboxing, policy is developed to confine software. Software can
+only perform permissible actions. It is intuitive but there are several
+challenges:
+- It is difficult to develop policy to allow untrusted code to be usable while
+  being able to protect against malware
+- It is difficult to protect against multi-step attacks
+On the other hand, isolation provides much stronger protection and
+usability. They permit sufficient access for most applications to work while
+isolating the resources used by benign and untrusted processes. Isolation also
+requires no policy development, making untrusted processes usable. However,
+there are have the following drawbacks:
+- Fragmentation of user data: user data are partitioned into two or more
+  containers
+- Inability to compose applications: isolation prevents resources to be shared,
+  hence it is hard to compose applications to achieve a task
+- No protection when isolation is breached
+
+The goal of our approach is to provide same security protection as isolation but
+under a single, unfragmented view of user’s data. It is natural to start with
+the sandboxing model. However, as mentioned earlier, it is difficult to develop
+secure yet functional sandboxing policies for untrusted code. So, we propose a
+counter-intuitive alternative: focus policy enforcement on goodware rather than
+(potential) malware. In addition to preventing subversion attacks on benign
+software, our design utilizes benign sandboxing to relax and simplify policies
+on untrusted code, thus improving their usability as well as security. 
+
+The key features of the approach include:
+
+- decomposed sandbox architecture: combine sandboxing for untrusted and benign
+  processes to simplify the design and implementation
+- techniques for inferring policies from runtime time and profile data for
+  untrusted processes
+- system integrity assurance and guranteeing availability of benign applications
+- Seamless user experience
+- Sparing users from making security-critical policy decision: user decisions 
+
+
+
+2. Description of the approach
+------------------------------
+To overcome previously mentioned challenges of sandboxing policy enforcement, we
+propose an interesting approach that further decomposes policies on untrusted
+code. This decomposition permits most enforcement to be performed in a setting
+where sandboxed software has no incentive to evade enforcement. This cooperative
+policy enforcement is anchored over a minimal non-bypassable enforcement
+component. Here too, we avoid the difficulties of non-bypassable enforcement by
+reusing a time-tested OS policy enforcement mechanism, namely, userid based
+access control. This is enforced by our inner sandbox.
+
+The inner sandbox relies on the system DAC permission to confine untrusted
+processes from performing operations that are dangerous. However, the system DAC
+permission is too coarse grained and untrusted processes are not usable under
+the inner sandbox. Hence, outer sandbox is introduced to relax the policy
+enforced. The outer sandbox is enforced by intercepting calls to library,
+combined with a trusted helper process to grant additional privileges to
+untrusted processes. Hence, circumvent is not a problem. 
+
+Complete protection is achieved by also enforcing policies on benign
+processes. The sandbox for benign processes confine the interaction with
+untrusted code and data. Same as the outer sandbox for untrusted processes,
+sandbox for benign processes is also enforced using library
+interception. Circumvent is not a problem because we are confining benign
+processes. They do not have any intention to bypass any policy enforced as they
+already have the privileges. 
+
+By confining both untrusted and benign processes, benign processes will not
+interact with any untrusted code and data. Untrusted code and data will only be
+consumed within sandbox for untrusted processes. The system integrity can hence
+be preserved. 
+
+2.1 Inner sandbox for untrusted processes
+-----------------------------------------
+The system relies on existing DAC permission on OSes to enforce non-bypassable
+policies on untrusted processes. The basic policy to enforce is to prevent
+untrusted processes from modifying benign files. This is enforced by running
+untrusted processes with a brand-new userid R_u. 
+
+Specifically, the following will be performed:
+- A new userid R_u denoting the untrusted user is added for the current user
+- For each group G the current user belongs to, there is an additional group
+  G_u created to include all members in G and R_u 
+- A new group 'trusted_group' consisting of all userids except the untrusted
+  one is created 
+
+The installation process will also make the following modifications to ensure
+that existing world-accessible files are protected from untrusted
+processes. Specifically: 
+- world-writable files and directories are made group-writable by trusted_group
+- world-executable files setuid programs are made executable by members of
+  trusted_group: either by making the executable group-executable or using ACLs 
+
+With the inner sandbox in place, untrusted processes can only modify files that
+are owned by untrusted processes. These files do not exist initially in the
+system. 
+
+
+2.2 Outer sandbox for untrusted processes
+-----------------------------------------
+The goal of the outer sandbox is to relax the policy enforced by the inner
+sandbox to make untrusted processes usable. It is achieved by intercepting
+system calls made in library. The outer sandbox is used to achieve: 
+- Reading user-readable files that untrusted user does not have read permission
+  from DAC. 
+- Executing user-executable files that untrusted user does not have execute
+  permission from DAC [Currently not implemented]. 
+- Creating new files or directories in user-writable directories.
+- Overwriting of existing files that belong to untrusted users. This allows
+  rename(2) to be performed in directories that are writable by the real user,
+  but not the untrusted user. 
+- Seamlessly redirect files that integrity have to be preserved (The list is
+  determined based on policy specified in Policy Inferring Section). During
+  redirection, the outer sandbox transparently creates a private copy of the
+  file for any subsequent use by R_u. The original file is left unchanged in the
+  file system. All future references to the files are modified transparently to
+  ensure processes have consistence file system view.
+- Providing userid and group transparency: Return user's uid and gid instead of
+  untrusted user's uid and gid. 
+
+As mentioned previously, outer sandbox is enforced using library and a trusted
+helper process. The library component transparently resolve any access denied by
+the inner sandbox. For operations such as providing userid transparency and
+redirection, the library can perform the operation itself. For operations that
+are limited by the DAC permission, it will contact the trusted helper process
+using Unix domain socket, and request the trusted helper process to perform the
+requested actions. The trusted helper process will perform the operations if
+they are compliant with the policies specified above. 
+
+2.3 Sandbox for benign processes
+--------------------------------
+Same as the outer sandbox for untrusted processes, benign processes are confined
+by intercepting system calls made in library. There are three basic ways for
+benign processes to interact with untrusted processes: 
+- Full isolation: This is the default policy for benign processes when
+  interacting with untrusted processes. The sandbox for benign processes will 
+  prevent benign processes from accessing untrusted code or data. 
+- Unrestricted interaction: Selected processes can be designated as trusted so
+  that they can freely interact with untrusted code and data. Trusted processes
+  can be specified in the trusted process list. 
+- Controlled interaction: Benign processes may be trusted to interact with
+  selected code or data. Our system supports specifying a list of untrusted file
+  paths that a program when executed as benign process can interact without any
+  confinement. This can be configured in trust-confined process list. 
+
+The sandbox for untrusted processes make sure that untrusted data are
+labeled. To prevent benign processes from consuming untrusted data, the sandbox
+for benign process can simply look at the integrity labels of data. If the data
+is untrusted, the sandbox can simply return EPERM or ENOENT, depending on the
+policy. (Note: The system overloads the DAC permission information to serve as
+integrity label. An integrity label is untrusted if it allows untrusted users to
+write, or is group owned by untrusted users.) 
+
+
+3. Policy Inference for untrusted processes
+-------------------------------------------
+Not all write accesses to benign files by untrusted processes are
+redirected. Redirection should be applied as little as possible as it leads to
+file namespace fragmentation. Furthermore, users are not aware of the existence
+of the redirected storage, and the storage needs not be persistence. 
+
+The system relies on distinguishing between configuration files and data files
+to assign policy. By default, untrusted processes cannot modify benign
+files. However, if the benign file is configuration file, the system will apply
+redirection. This decision is to make untrusted processes more usable. 
+
+Distinguishing code or configuration files versus data files
+Applications tend to know where the code or configuration files are located
+without asking users. Based on this observation, we developed a technique to
+distinguish code or configuration files versus data files based on
+taint-tracking. A file specified explicitly by users is data file. On the other
+hand, if the program access a file without explicitly specified by the users are
+likely to be code or configuration files. 
+
+To identify implicitly accessed files, we intercept the system calls for record
+explicitly specified parameters. These include command-line arguments,
+environment variables and file name returned by a file selection widget. We also
+record all files opened by a process. Files that are opened in write mode
+without appearing in the explicitly specified list are marked as configuration
+files. These files hence can be redirected. 

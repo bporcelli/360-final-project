@@ -1,0 +1,185 @@
+#include "lwip_write.h"
+#include "lwip_syscall_handler.h"
+
+#include "lwip_debug.h"
+#include "lwip_utils.h"
+#include "lwip_level.h"
+
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <sys/un.h>
+
+
+#include <string.h>
+
+/* XXX: This is specific to the dbus version we are using. It uses SYS_write
+   to send a null byte, followed by the authentication messages. In later
+   versions of dbus, they actually used send instead of write
+
+   write(6, "\0", 1)                       = 1
+   write(6, "AUTH EXTERNAL 3130\r\n", 20)  = 20 */
+
+/*
+   0: nothing observed
+   fd: a null byte is written on fd
+*/
+
+__thread int state, newCount = 0, oldCount;
+__thread char *lwip_write_tempStorage = NULL;
+
+
+
+
+lwip_syscall(write_l, pre) {
+/*
+	LWIP_SAVE_PARAMETERS_N(3);
+	prepare_variables3(int, fd, void *, buf, size_t, count);
+
+	if (count == 1 && ((char *)buf)[0] == '\0') {
+		if (state != 0)
+			LWIP_CRITICAL("Exist multiple single NULL byte writes??");
+		state = fd;
+		goto out;
+	}
+
+	if (state == fd) {
+		LWIP_SPECIAL("Found a send: %s", (char *)buf);
+
+		//Just report fake one if the other end is also of low integrity
+		struct ucred peercred;
+		size_t peercredlen = sizeof(peercred);
+		if (getsockopt(fd, SOL_SOCKET, SO_PEERCRED, (void *)&peercred, &peercredlen) == 0) {
+			if (!level_isUntrustedUid(peercred.uid))
+				LWIP_SPECIAL("Peer is a trusted process, need to convert the fake id to real");
+			//Report the real identity (if talking with high integrity processes)
+			if (count < 30 && strstr(buf, "AUTH EXTERNAL 3") == buf) {
+				lwip_write_tempStorage = lwip_bm_malloc(100);
+				char euidstr[6];
+				int printedSofar = 0, temp = 0;
+				oldCount = count;
+				snprintf(euidstr, 6, "%d", geteuid());
+				printedSofar += sprintf(lwip_write_tempStorage + printedSofar, "AUTH EXTERNAL ");
+				while (euidstr[temp] != '\0') {
+					printedSofar += sprintf(lwip_write_tempStorage + printedSofar, "3%c", euidstr[temp]);
+					temp++;
+				}
+				printedSofar += sprintf(lwip_write_tempStorage + printedSofar, "\r\n");
+				newCount = printedSofar;
+
+				lwip_change_syscall3(SYS_write, *p1_ptr, lwip_write_tempStorage, newCount);
+
+			}
+		}
+
+		state = 0;
+	}
+out:
+	return;
+*/
+}
+
+
+lwip_syscall(write_l, post) {
+/*
+	if (lwip_write_tempStorage != NULL) {
+		free(lwip_write_tempStorage);
+		lwip_write_tempStorage = NULL;
+		if (!LWIP_ISERROR)
+			LWIP_UNSET_SYSCALL_ERROR(oldCount);
+	}
+*/
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+lwip_syscall(write, pre) {
+
+//	if (!lwip_isIN_mode)
+//		goto out;
+
+//	if (lwip_isIN_mode)
+//		goto out;
+
+	LWIP_SAVE_PARAMETERS_N(3);
+	prepare_variables3(int, fd, void *, buf, size_t, count);
+
+	if (LWIP_PROCESS_LV_LOW && lwip_isIN_mode) {
+		if (count == 1 && ((char *)buf)[0] == '\0') {
+			if (state != 0)
+				LWIP_CRITICAL("Exist multiple single NULL byte writes??");
+			state = fd;
+			goto out;
+		}
+
+		if (state == fd) {
+			LWIP_SPECIAL("Found a send: %s", (char *)buf);
+
+			//Just report fake one if the other end is also of low integrity
+			struct CREDSTRUCT peercred;
+			size_t peercredlen = sizeof(peercred);
+			if (getsockopt(fd, SOL_SOCKET, CREDOPT, (void *)&peercred, &peercredlen) == 0) {
+
+#ifdef LWIP_OS_LINUX
+				if (level_isUntrustedUid(peercred.uid))
+#elif defined LWIP_OS_BSD
+				if (level_isUntrustedUid(peercred.cmcred_uid))
+#endif
+					LWIP_SPECIAL("Peer is also an untrusted process!, just send the fake id");
+				else {
+					LWIP_SPECIAL("Peer is a trusted process, need to convert the fake id to real");
+
+					//Report the real identity (if talking with high integrity processes)
+					if (count < 30 && strstr(buf, "AUTH EXTERNAL 3") == buf) {
+						lwip_write_tempStorage = malloc(100);
+						char euidstr[6];
+						int printedSofar = 0, temp = 0;
+						oldCount = count;
+						snprintf(euidstr, 6, "%d", geteuid());
+						printedSofar += sprintf(lwip_write_tempStorage + printedSofar, "AUTH EXTERNAL ");
+						while (euidstr[temp] != '\0') {
+							printedSofar += sprintf(lwip_write_tempStorage + printedSofar, "3%c", euidstr[temp]);
+							temp++;
+						}
+						printedSofar += sprintf(lwip_write_tempStorage + printedSofar, "\r\n");
+						newCount = printedSofar;
+
+						lwip_change_syscall3(SYS_write, *p1_ptr, lwip_write_tempStorage, newCount);
+						
+					}
+				}
+			}			
+
+			state = 0;
+		}
+	}
+
+out:
+	return;
+}
+
+lwip_syscall(write, post) {
+	if (lwip_isIN_mode && LWIP_PROCESS_LV_LOW) {
+	if (lwip_write_tempStorage != NULL) {
+		free(lwip_write_tempStorage);
+		lwip_write_tempStorage = NULL;
+		if (!LWIP_ISERROR)
+			LWIP_UNSET_SYSCALL_ERROR(oldCount);
+	}
+	}
+}
+

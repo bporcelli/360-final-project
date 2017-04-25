@@ -1,0 +1,12 @@
+.PATH: ${LWIP_LIBRARY_BASE_DIR}
+
+SRCS+=lwip_access.c lwip_chmod.c lwip_chown.c lwip_execve.c \
+	lwip_fork.c lwip_getuid.c lwip_ipc.c lwip_link.c lwip_mkdir.c \
+	lwip_mknod.c lwip_open.c lwip_rename.c lwip_socket.c lwip_stat.c \
+	lwip_statfs.c lwip_unlink.c lwip_utimes.c lwip_write.c
+
+CFLAGS+=$(LWIP_LIBRARY_BASE_DIR}
+
+lwip_syscall_mapping.h: lwip_syscall_mapping.c
+	
+

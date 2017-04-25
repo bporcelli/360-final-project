@@ -1,0 +1,18 @@
+.PATH: ${LWIP_LIBRARY_DIR}
+
+SRCS+= lwip_delegator_connection.c lwip_extlib.c lwip_redirect.c \
+       lwip_syscall_ftb.c 
+
+CFLAGS+=-I${LWIP_LIBRARY_DIR}
+CFLAGS+=-I${LWIP_LIBRARY_DIR}/tx
+CFLAGS+=-I${LWIP_LIBRARY_DIR}/ae
+CFLAGS+=-I${LWIP_LIBRARY_DIR}/rd
+CFLAGS+=-I${LWIP_LIBRARY_DIR}/iso
+CFLAGS+=-I${LWIP_LIBRARY_DIR}/base
+
+LWIP_LIBRARY_BASE_DIR=${LWIP_LIBRARY_DIR}/base
+LWIP_LIBRARY_BASE_MAKEFILE=${LWIP_LIBRARY_BASE_DIR}/Makefile.bsd
+
+.include <$(LWIP_LIBRARY_BASE_MAKEFILE)>
+
+#lwip_syscall_ftb.c: lwip_syscall_mapping.h
