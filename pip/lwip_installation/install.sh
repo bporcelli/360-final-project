@@ -59,7 +59,8 @@ do
         # Make dir for this lib in intercepted
         mkdir -p $intercepted_dir$dirPath
 
-    # Run intercept.sh with the args of  lib_name and /intercepted_dir/lib_name.intercetped
+    # Run intercept.sh with the args of lib_name (sets LD_PRELOAD with libdisasm.so.0)
+    # Output at /intercepted_dir/lib_name.intercetped
 	echo -ne "Intercepting $libPath, outputing at $intercepted_dir$libPath.intercepted ... "
 	./library_interceptor/intercept.sh $libPath $intercepted_dir$libPath.intercepted > /dev/null
 	echo "Done"
@@ -68,26 +69,26 @@ do
         ln -sf $basename.intercepted $intercepted_dir$lib
 done
 
-
+# Get username of person running script
 realUserName=`whoami`
 if [[ $realUserName == "root" ]]; then
   realUserName=$SUDO_USER
 fi
-
-
+# Create user named "untrusted" with userid 1004
 useradd -u 1004 untrusted
+# Add user "untrusted" to a group called "untrusted"
 usermod -a -G untrusted $realUserName
+# Add a user named "untrustedRoot" with userid 1005
 useradd -u 1005 untrustedRoot
-
+# Create "trusted_group"
 sudo groupadd trusted_group
+# Add every use on system other then "untrusted" to the "trusted_group"
+# Cut passwd down to first column (usernames) (seperated by ';'), remove "untrusted" username, run usermod on each
 cat /etc/passwd|cut -f 1 -d ':'|grep -v untrusted|xargs -n1 -I'{}' bash -c "sudo usermod -a -G trusted_group {}"
 
 sudo apt-get install -y libnotify-bin libcap-dev pcregrep libsqlite3-dev m4 xserver-xephyr
-
-
 sudo touch /bin/restoreLib
 sudo chmod +x /bin/restoreLib
-
 sudo touch /bin/replaceLib
 sudo chmod +x /bin/replaceLib
 

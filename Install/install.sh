@@ -16,7 +16,6 @@ mkdir ../utilities
 
 
 
-
 # Get Ubuntu distribution and version
 distribution=`lsb_release -i |gawk '{print $3}'`
 distribution_release=`lsb_release -r |gawk '{print $2}'`
@@ -38,16 +37,30 @@ fi
 
 # Get user running this script (also works if running as sudo)
 realUserName=`who | awk '{print $1}'`
-
 # Untrusted Userids
 untrusted_id=1004
 untrustedRoot_id=1005
-# Create untrusted user (-u sets userid)
+# Create "untrusted" user (-u sets userid) and a group "untrusted"
 useradd -u $untrusted_id untrusted
-# Modify untrusted user (-a adds user to group, -G groups user is in)
+# Modify "untrusted" user (-a adds user to group, -G groups to add to)
 usermod -a -G untrusted $realUserName
-# Create untrusted root user (?)
+# Create untrusted root user
 useradd -u $untrustedRoot_id untrustedRoot
+# Create "trusted_group"
+sudo groupadd trusted_group
+# Add every use on system other then "untrusted" to the "trusted_group"
+# Cut passwd down to first column (usernames) (seperated by ';'), remove "untrusted" username, run usermod on each
+cat /etc/passwd|cut -f 1 -d ':'|grep -v untrusted|xargs -n1 -I'{}' bash -c "sudo usermod -a -G trusted_group {}"
+
+# ??? Not sure what this is for
+sudo apt-get install -y libnotify-bin libcap-dev pcregrep libsqlite3-dev m4 xserver-xephyr
+
+# Touch: Update access and modification times to current time
+# Chmod: Add execute permission for all users
+sudo touch /bin/restoreLib
+sudo chmod +x /bin/restoreLib
+sudo touch /bin/replaceLib
+sudo chmod +x /bin/replaceLib
 
 # WHAT THE INSTALLATION SCRIPT MUST DO:
 #	Copy our glibc wrapper library into 'usr/lib/' or '/usr/local/lib'
