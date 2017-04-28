@@ -59,8 +59,8 @@ do
         # Make dir for this lib in intercepted
         mkdir -p $intercepted_dir$dirPath
 
-    # Run intercept.sh with the args of lib_name (sets LD_PRELOAD with libdisasm.so.0)
-    # Output at /intercepted_dir/lib_name.intercetped
+    # Run intercept.sh with the args of lib_name (sets LD_PRELOAD with libdisasm.so.0 and other stuff)
+    # Output at /intercepted_dir/lib_name.intercepted
 	echo -ne "Intercepting $libPath, outputing at $intercepted_dir$libPath.intercepted ... "
 	./library_interceptor/intercept.sh $libPath $intercepted_dir$libPath.intercepted > /dev/null
 	echo "Done"
@@ -82,7 +82,7 @@ usermod -a -G untrusted $realUserName
 useradd -u 1005 untrustedRoot
 # Create "trusted_group"
 sudo groupadd trusted_group
-# Add every use on system other then "untrusted" to the "trusted_group"
+# Add every user on system other then "untrusted" to the "trusted_group"
 # Cut passwd down to first column (usernames) (seperated by ';'), remove "untrusted" username, run usermod on each
 cat /etc/passwd|cut -f 1 -d ':'|grep -v untrusted|xargs -n1 -I'{}' bash -c "sudo usermod -a -G trusted_group {}"
 
@@ -92,22 +92,14 @@ sudo chmod +x /bin/restoreLib
 sudo touch /bin/replaceLib
 sudo chmod +x /bin/replaceLib
 
-#./lwip_installer/configure.sh
 
 
 #This part copies the required binaries
 sudo mkdir /lwip/executables
-
 ./../lwip_new/install.sh
-
-#sudo cp -Lvr executables /lwip
 sudo cp re*Lib /lwip/executables/
 
-#sudo chown root:root /lwip/executables/*
-#sudo chown $realUserName:$realUserName /lwip/executables/redirectHelper
 
-
-#sudo chmod +s /lwip/executables/*
 
 sudo rm /bin/restoreLib /bin/replaceLib
 
@@ -120,15 +112,7 @@ sudo ln -sf /lwip/executables/redirectHelper /bin
 ln -s /lwip/executables/re*Lib ~
 
 
-#Secure installer
 
-#sudo mkdir -p /redirection/union_root
-#sudo mkdir -p /redirection/redirected_root
-
-#sudo mkdir /usr/bin/wrapper
-#sudo cp /usr/bin/dpkg /usr/bin/wrapper/
-
-#sudo sh secure_installer/install.sh
 
 #This part is about replacing the libraries
 sudo cp -vL libraries/* /lib
