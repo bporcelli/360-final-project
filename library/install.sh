@@ -15,9 +15,9 @@ make clean lib
 ####################################################
 ## Copy our glibc wrapper libraries into usr/lib/ ##
 ####################################################
-lib_dir="/usr/lib"
-libs=$(find bin/ -name *.so)
-cp -t $lib_dir $libs
+LIB_DIR="/usr/lib/"
+LIBS=("libtest.so")
+cp -t $LIB_DIR ${LIBS[@]/#/bin/}
 
 ##############################################################
 ## Append the name of our '.so' file to 'etc/ld.so.preload' ##
@@ -26,9 +26,8 @@ cp -t $lib_dir $libs
 # These "preloading" libraries will take precedence over the standard set.
 # It contains names of libraries to be loaded, separated by white spaces or `:'.
 libs_appended=0
-for lib in $libs
+for lib in $LIBS
 do
-	lib=${lib#bin/}  # strips "bin/" from lib path
 	if [[ $libs_appended == 0 ]]; then
 		# Overwrites the file
 	  	echo "$lib" > "/etc/ld.so.preload"
