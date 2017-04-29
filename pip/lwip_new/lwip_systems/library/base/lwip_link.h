@@ -24,17 +24,6 @@
 #define __LWIP_LINK_H__
 #include "lwip_syscall_handler.h"
 
-lwip_syscall(link, pre);
-lwip_syscall(linkat, pre);
-lwip_syscall(linkat, post);
-
-lwip_syscall(symlink, pre);
-lwip_syscall(readlink, pre);
-lwip_syscall(symlinkat, post);
-lwip_syscall(readlinkat, post);
-
-
-
 lwip_syscall(link_l, pre);
 lwip_syscall(linkat_l, pre);
 lwip_syscall(linkat_l, post);
