@@ -16,7 +16,7 @@ make clean lib
 ## Copy our glibc wrapper libraries into usr/lib/ ##
 ####################################################
 LIB_DIR="/usr/lib/"
-LIBS=("libtest.so")
+LIBS=("libwrap.so")
 cp -t $LIB_DIR ${LIBS[@]/#/bin/}
 
 ##############################################################

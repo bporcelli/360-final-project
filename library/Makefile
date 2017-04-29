@@ -1,13 +1,21 @@
-clean: 
-	rm -rf bin/*
+INCD := include/
+BIND := bin/
+SRCD := src/
+TSTD := tests/
+
+LIB_SRC := $(shell find $(SRCD) -name *.c)
+TEST_SRC := $(shell find $(TSTD) -name *.c)
+
+clean:
+	rm -f $(BIND)*
 	rm -f test.txt
 
 # See http://samanbarghi.com/blog/2014/09/05/how-to-wrap-a-system-call-libc-function-in-linux/ for explanation
 # of GCC options
-lib: testlib.c
-	gcc -fPIC -shared -o bin/libtest.so testlib.c -ldl
+lib: $(LIB_SRC)
+	gcc -fPIC -shared -I $(INCD) -o $(BIND)libwrap.so $(LIB_SRC) -ldl
 
-test: test.c
-	gcc -o bin/test test.c
+test: $(TEST_SRC)
+	gcc -o $(BIND)test $(TEST_SRC)
 
 all: lib test
