@@ -51,6 +51,11 @@
 #include <stddef.h>
 #endif
 
+/**
+ * NOTE: Contains function prototypes for delegated syscall handlers.
+ * The actual implementations can be found in the files in directory
+ * lwip_systems/daemon/base.
+ */
 
 //access
 lwip_del_call(faccessat);

@@ -45,7 +45,7 @@ include_dirs += ../../include/common $(all_dirs) ./
 
 install: $(executable)
 	sudo cp -vf $(executable) /lwip/executables/
-	sudo chown root:root /lwip/executables/$(executable)
+	sudo chown root:root /lwip/executables/$(executable) # daemon must be setuid root
 	sudo chmod +s /lwip/executables/$(executable)
 
 

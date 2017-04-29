@@ -119,6 +119,12 @@ struct del_pkt {
 	struct del_pkt_ ##call pkt = lwip_del_getPkt(call); \
 	struct del_pkt_ ##call ##_response response = lwip_del_getPktResponse(call)
 
+/**
+ * The below code uses the del_pkt_declaration and del_pkt_response_declaration
+ * macros to define struct del_pkt_SYSCALLNAME and struct del_pkt_SYSCALLNAME_response.
+ * These structs are used to facilitate syscall delegation.
+ */
+
 //generic
 del_pkt_response_declaration(generic, 0);
 
@@ -178,16 +184,6 @@ del_pkt_response_declaration(socketcall_bind, 0);
 del_pkt_declaration(lwip_fstatat, 2, char, pathname[PATH_MAX], int, flags);
 del_pkt_response_declaration(lwip_fstatat, 1, lwip_fstatat_struct_stat, buf);
 
-/*
-//stat
-#ifdef LWIP_OS_LINUX
-del_pkt_declaration(fstatat64, 2, char, pathname[PATH_MAX], int, flags);
-del_pkt_response_declaration(fstatat64, 1, struct stat64, buf);
-#elif defined LWIP_OS_BSD
-del_pkt_declaration(fstatat, 2, char, path[PATH_MAX], int, flag);
-del_pkt_response_declaration(fstatat, 1, struct stat, sb);
-#endif
-*/
 //statfs
 del_pkt_declaration(statfs, 2, char, path[PATH_MAX], int, size);
 del_pkt_response_declaration(statfs, 1, struct statfs, buf);

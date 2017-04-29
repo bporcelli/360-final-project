@@ -26,6 +26,9 @@
 #include "lwip_del_conf.h"
 #include "lwip_debug.h"
 
+/* Macros used to set up delegated system calls. The daemon will call
+ * the method process_SYSCALLNAME by default to handle a delegated 
+ * syscall. */
 #define lwip_del_call(call) int process_ ##call(struct del_pkt_ ##call *req, struct del_pkt_ ##call ##_response *response)
 #define lwip_del_iso_call(call) int process_iso_ ##call(struct del_pkt_ ##call *req, struct del_pkt_ ##call ##_response *response)
 

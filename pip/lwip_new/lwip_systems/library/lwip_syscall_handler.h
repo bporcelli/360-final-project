@@ -59,7 +59,12 @@
 	} while (0)
 	
 
-
+/**
+ * The below macros are used to define pre/post functions for syscalls.
+ * Pre functions have names of the form SYSCALLNAME_pre, and post functions
+ * have names of the form SYSCALLNAME_post.
+ */
+	
 #define lwip_syscall(syscallName, prepost) _lwip_syscall_ ##prepost(syscallName)
 
 

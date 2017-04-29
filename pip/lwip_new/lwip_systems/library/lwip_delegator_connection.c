@@ -32,7 +32,12 @@
 
 int sh_delegatorSocket = -1;
 
-
+/**
+ * This function starts the trusted helper by running the "daemon" executable.
+ * Note that while the daemon accepts a per-process ID as an argument, the ID
+ * is being set to "all" for every process. The authors must have decided against
+ * using unique IDs for each process.
+ */
 void sh_startDelegator()
 {
 	if (lwip_isIN_mode) {
@@ -69,6 +74,17 @@ void sh_closeDelegatorSocket()
 }
 
 
+/**
+ * This function is used to send delegated system calls to the trusted helper.
+ *
+ * It first checks whether a socket for communicating with the trusted helper
+ * is open (line 89). If not, it creates a new socket (line 95) and attempts
+ * to connect to the helper (line 122). If the helper is not yet started, it
+ * calls sh_startDelegator() (line 129).
+ *
+ * Once the delegator socket is open, it sends the delegated syscall to the
+ * helper process (line 140).
+ */
 int sh_sendPkt2delegator(struct del_pkt *pkt)
 {
 	int len;
@@ -105,7 +121,7 @@ int sh_sendPkt2delegator(struct del_pkt *pkt)
 	if (lwip_isIN_mode)
 		sprintf(per_process_daemon_path, LWIP_ROOT_DAEMON_COMMUNICATION_PATH "/install");
 	else
-		sprintf(per_process_daemon_path, LWIP_DAEMON_COMMUNICATION_PATH "/all");
+		sprintf(per_process_daemon_path, LWIP_DAEMON_COMMUNICATION_PATH "/all"); /* NOTE: per-process ID always "all" */
 
 	len = sizeof(addr.sun_family) + sprintf(addr.sun_path, "%s", per_process_daemon_path);
 	LWIP_INFO("per_process_daemon_path is %s, connect socket is %d", per_process_daemon_path, sh_delegatorSocket);

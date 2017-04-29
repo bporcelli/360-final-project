@@ -56,18 +56,15 @@
 static int exit_flag = 0;
 static char per_process_daemon_path[PATH_MAX];
 
-//void * handle_request(void *arg)
+/**
+ * Handles a request from an untrusted process.
+ */
 void handle_request(int newfd) {
 
 	int syscall_num = -1;
 	int ret;
 
-	//  uid_t uid;
-	//  gid_t gid;
-
 	int breakloop = 0;
-//	int tid = *((int*)arg);
-//	int newfd = threads[tid].newfd;
 	int message_size = 0;
 
 	static char message[PATH_MAX*3];
@@ -75,6 +72,7 @@ void handle_request(int newfd) {
 
 	while(!breakloop && !exit_flag)
 	{
+		/* Reads the syscall number and message size */
 		ret = recv(newfd, message, sizeof(int)*2, MSG_PEEK);
 		message_size = ((int *)message)[0];
 		syscall_num = ((int *)message)[1];
@@ -90,12 +88,14 @@ void handle_request(int newfd) {
 			break;
 		}
 
+		/* Check: message size OK? */
 		if (LWIP_unlikely(message_size > sizeof(message))) {
 			LWIP_CRITICAL("Message size declared is greater than what is supported %d, %d", message_size, sizeof(message));
 			breakloop = 1;
 			break;
 		} 
 
+		/* Read entire message */
 		if (syscall_num == SYS_fchmod) {
 			ret = lwip_util_recv_fd(newfd, message, message_size, &fd_received);
 		} else
@@ -109,37 +109,10 @@ void handle_request(int newfd) {
 		}
 
 		syscall_num = *(int *)(message+4);
-/*
-		if (lwip_util_isInsideContainer()) {
-			switch(syscall_num) {
 
-				daemon_iso_case(faccessat);
-
-				case SYS_open: {
-				       int rv;
-				       struct del_pkt_open_response response = lwip_del_getPktResponse(open);
-				       rv = process_iso_open((struct del_pkt_open *)&message, &response);
-				       lwip_util_send_fd(newfd, &response, response.l_size, rv);
-				       if (rv >= 0)
-					       close (rv);
-				       break;
-				}
-
-				daemon_iso_case(fchmodat);
-				daemon_iso_case(fchownat);
-				daemon_iso_case(mkdir);
-				daemon_iso_case(rename);
-				daemon_iso_case(symlink);
-				daemon_iso_case(unlinkat);
-
-				default:
-					goto base_handler;
-			}
-			continue;
-		}
-
-base_handler:
-*/
+		/* Gets response (struct del_pkt_SYSCALLNAME_response) by calling lwip_del_getPktResponse,
+		 * runs some code (by default process_SYSCALLNAME) to generate response message, and calls
+		 * SEND_DEL_PKT_CORRECT to send response back to peer process. */
 		switch(syscall_num) {
 			
 			//access
@@ -207,15 +180,6 @@ base_handler:
 			}
 
 
-
-/*			//stat
-#if 0
-#ifdef LWIP_OS_BSD
-			daemon_case(fstatat);
-#elif defined LWIP_OS_LINUX
-			daemon_case(fstatat64);
-#endif
-#endif*/
 			daemon_case(lwip_fstatat);
 
 
@@ -246,24 +210,17 @@ base_handler:
 	}
 	LWIP_INFO("Connection closed: %d", newfd);
 	close(newfd);
-//	threads[tid].no_clients = 0;
 }
 
-
-
-int find_free_thread() {
-	int i,pos = -1;
-	for(i = 0; i < DAEMON_MAX_CONNECTION; i++) {
-		if(threads[i].no_clients == 0) {
-			pos = i;
-			threads[i].no_clients = 1;
-			break;
-		}
-	}
-	return pos;
-}
-
-
+/**
+ * Called after new connection established.
+ *
+ * Despite the name, it doesn't appear to do any "validation." Instead, it sets
+ * the value of the arguments uid and gid to the uid and gid of the peer process
+ * and writes some info to the log file.
+ *
+ * Interestingly, the uid/gid are not used in the caller (start_server).
+ */
 int is_connection_valid(int sockfd, uid_t *uid, gid_t *gid) {
 
 #ifdef LWIP_OS_BSD
@@ -292,15 +249,22 @@ int is_connection_valid(int sockfd, uid_t *uid, gid_t *gid) {
 }
 
 
+/**
+ * Starts the server thread.
+ *
+ * The main server thread accepts connections from untrusted processes and spawns
+ * worker threads to handle requests from each.
+ */
 void *start_server(void *arg) {
 	int sockfd,ret, i;
 	unsigned int len;
 	struct sockaddr_un addr,client_addr;
 
+	/* NOTE: these vars are unused. */
 	uid_t uid;
 	gid_t gid;
 
-	char *per_process_id = (char *)arg;
+	char *per_process_id = (char *)arg; /* NOTE: Will always be "all" */
 
 	LWIP_INFO("Starting the server"); 
 
@@ -332,14 +296,15 @@ void *start_server(void *arg) {
 	len = sizeof(addr.sun_family) + sprintf(addr.sun_path, "%s", per_process_daemon_path); /* FreeBSD requires + 1 */
 #endif
 
+	/* Binds socket to per_process_daemon_path. Any process can connect to this
+	 * path to send a delegated request to the server. */
 	ret = bind(sockfd, (struct sockaddr*)&addr, len);
 	if(ret < 0) {
 		LWIP_CRITICAL("bind failed, errno: %d", errno);
 		return 0;
 	}
 
-	//chmod the socket so that anyone can connect to it
-	//chmod(DAEMON_PATH, S_IRWXU | S_IRWXG | S_IRWXO);
+	// chmod the socket so that anyone can connect to it
 	chmod(per_process_daemon_path, S_IRWXU | S_IRWXG | S_IRWXO);
 
 	if(listen(sockfd, DAEMON_MAX_CONNECTION) < 0) {
@@ -364,28 +329,6 @@ void *start_server(void *arg) {
 
 		thpool_add_work(threadpool, (void *)handle_request, (void *)newfd);
 
-/*
-
-		ret = find_free_thread();
-		if(ret < 0) {
-			LWIP_CRITICAL("no thread is free");
-			close(newfd);
-			return 0;
-		}	
-		//start a new thread to manage this connection
-		threads[ret].newfd = newfd;
-		int rv = 0, retry = 0;
-tryagain:
-		if ((rv = pthread_create(&threads[ret].tid, NULL, &handle_request, (void *)&ret)) != 0) {
-			LWIP_UNEXPECTED("pthread create for daemon is error: %d, retry: %d", rv, retry);
-			if (retry++ < 5) {
-				sleep(1);
-				goto tryagain;
-			}
-		} else {
-			LWIP_UNEXPECTED("pthread create succeed");
-		}
-*/
 	}//while on socket
 
 	thpool_destroy(threadpool);
@@ -395,6 +338,15 @@ tryagain:
 	return 0;
 }
 
+/**
+ * Main method.
+ *
+ * Initializes the helper process by:
+ *
+ * 1) Setting the real, effective, and saved GID for the process (393)
+ * 2) Setting the real, effective, and saved UID for the process (396)
+ * 3) Spawning server and proxy threads.
+ */
 int main(int argc, char **argv)
 {
 	pthread_t server_thread, proxy_thread;
@@ -406,7 +358,7 @@ int main(int argc, char **argv)
 
 	setgroups(2, list);
 	
-//	setresgid(LWIP_CF_REAL_USERID, LWIP_CF_REAL_USERID, LWIP_CF_REAL_USERID);
+	/* Q: Why are they providing userids as arguments to setresgid? Group IDs are expected. */
 	setresgid(LWIP_CF_REAL_USERID, LWIP_CF_UNTRUSTED_USERID, LWIP_CF_REAL_USERID);
 	umask(S_IWOTH);
 	setresuid(LWIP_CF_REAL_USERID, LWIP_CF_REAL_USERID, LWIP_CF_REAL_USERID/*LWIP_CF_UNTRUSTED_USERID*/);

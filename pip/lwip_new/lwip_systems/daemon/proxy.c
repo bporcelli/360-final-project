@@ -39,7 +39,16 @@
 #include <stddef.h>
 #endif
 
+/**
+ * The functions in this file enable the helper process to
+ * connect(2) to a socket on behalf of an untrusted process.
+ * See lwip_new/lwip_systems/library/base/lwip_socket_l.c for
+ * more information.
+ */
 
+/**
+ * Forwards a message from clientSocket to dBusSocket.
+ */
 void *start_generic_proxy_msg(void *arg)
 {
 	int dbusSocket = ((int *)arg)[0];
@@ -48,18 +57,15 @@ void *start_generic_proxy_msg(void *arg)
 
 	int on = 1;
 	setsockopt(dbusSocket, SOL_SOCKET, CREDOPT, &on, sizeof(on));
-/*	setsockopt(clientSocket, SOL_SOCKET, CREDOPT, &on, sizeof(on));
-*/
 
-        union {
-                struct cmsghdr  cm;
-                char    control[CMSG_SPACE(sizeof(struct CREDSTRUCT))];
-        } control_un;
-        struct msghdr msg;
-        struct iovec iov[1];
-        struct cmsghdr *cmptr;
-//        const struct CREDSTRUCT *cmcredptr;
-        socklen_t controllen;
+	union {
+        struct cmsghdr  cm;
+        char    control[CMSG_SPACE(sizeof(struct CREDSTRUCT))];
+	} control_un;
+	struct msghdr msg;
+	struct iovec iov[1];
+	struct cmsghdr *cmptr;
+	socklen_t controllen;
 
 	controllen = sizeof(control_un.control);
 
@@ -67,18 +73,18 @@ void *start_generic_proxy_msg(void *arg)
 
 	while (1) {
 
-                iov[0].iov_base = buf;
-                iov[0].iov_len = sizeof(buf);
+        iov[0].iov_base = buf;
+        iov[0].iov_len = sizeof(buf);
 
-                msg.msg_name = NULL;
-                msg.msg_namelen = 0;
-                msg.msg_iov = iov;
-                msg.msg_iovlen = 1;
-                msg.msg_control = control_un.control;
-                msg.msg_controllen = controllen;
-                msg.msg_flags = 0;
+        msg.msg_name = NULL;
+        msg.msg_namelen = 0;
+        msg.msg_iov = iov;
+        msg.msg_iovlen = 1;
+        msg.msg_control = control_un.control;
+        msg.msg_controllen = controllen;
+        msg.msg_flags = 0;
 
-                controllen = CMSG_SPACE(sizeof(struct CREDSTRUCT));
+        controllen = CMSG_SPACE(sizeof(struct CREDSTRUCT));
 
 		n = recvmsg(clientSocket, &msg, 0);
 		if (n <= 0) {
@@ -98,13 +104,11 @@ void *start_generic_proxy_msg(void *arg)
 #ifdef LWIP_OS_LINUX
 			struct ucred cred;
 			memcpy(&cred, CMSG_DATA(cmptr), sizeof(cred));
-//			LWIP_INFO("process's pid: %d, uid: %d, gid: %d", cred.pid, cred.uid, cred.gid);
 
 			cred.pid = getpid();
 			cred.uid = getuid();
 			cred.gid = getgid();
 
-//			LWIP_INFO("Current: uid: %d, %d, gid: %d, %d", (uid_t)syscall(SYS_getuid32), geteuid(), (pid_t)syscall(SYS_getgid32), getegid());
 			memcpy(CMSG_DATA(cmptr), &cred, sizeof(cred));
 #endif
 
@@ -122,7 +126,7 @@ send_msg:
 		iov[0].iov_base = buf;
 		iov[0].iov_len = n;
 
-                msg.msg_control = control_un.control;
+        msg.msg_control = control_un.control;
 		msg.msg_name = NULL;
 		msg.msg_namelen = 0;
 		msg.msg_iov = iov;
@@ -140,6 +144,9 @@ send_msg:
 }
 
 
+/**
+ * Handles "direct" connect(2) requests.
+ */
 void serving_connect_fd(int sock2client, struct del_pkt_socketcall_connect_fd *pkt) {
 
 	struct sockaddr_un addr;
@@ -175,6 +182,9 @@ void serving_connect_fd(int sock2client, struct del_pkt_socketcall_connect_fd *p
 
 }
 
+/**
+ * Handles proxied connect(2) requests.
+ */
 void serving_connect_proxy(int sock2client, struct del_pkt_socketcall_connect_proxy *pkt) {
 
 	struct sockaddr_un addr;
@@ -237,6 +247,12 @@ void serving_connect_proxy(int sock2client, struct del_pkt_socketcall_connect_pr
 	return;
 }
 
+/**
+ * Executes in each worker thread.
+ *
+ * Calls either serving_connect_proxy or serving_connect_fd based
+ * on intercepted syscall name.
+ */
 void *serving_connection(void *arg)
 {
 
@@ -265,7 +281,7 @@ void *serving_connection(void *arg)
 
 	ret = recv(newfd, &message, message_size, 0);
 
-	switch (*(int *)(message + 4)) {
+	switch (*(int *)(message + 4)) { /* Switching on syscall name */
 		case SYS_socketcall_connect_proxy: serving_connect_proxy(newfd, (struct del_pkt_socketcall_connect_proxy *)&message); break;
 		case SYS_socketcall_connect_fd: serving_connect_fd(newfd, (struct del_pkt_socketcall_connect_fd *)&message); break;
 		default: {
@@ -280,8 +296,15 @@ out:
 	return 0;
 } 
 
-
-
+/**
+ * Starts a proxy thread.
+ *
+ * The proxy thread waits for requests on socket LWIP_DAEMON_COMMUNICATION_PATH/all-connect.
+ * When it receives a new request, it spawns a new thread to serve the connection.
+ *
+ * It appears that proxy threads are specifically responsible for handling socket-related
+ * system calls (see socketcall(2)).
+ */
 void *start_generic_proxy(void *arg)
 {
 
@@ -289,7 +312,7 @@ void *start_generic_proxy(void *arg)
 	unsigned int len;
 
 	struct sockaddr_un addr, client_addr;
-	char *per_process_id = (char *)arg;
+	char *per_process_id = (char *)arg; /* NOTE: always "all" */
 	char proxy_listen_path[PATH_MAX];
 
 

@@ -106,7 +106,7 @@ lwip_syscall(fchmodat_h, pre) {
 			return;
 
 		if (oldLevel == LV_HIGH) {
-			if ((mode & S_IRWXO) && (mode & S_IRWXG) && (mode & S_IRWXO)) {
+			if ((mode & S_IRWXO) && (mode & S_IRWXG) && (mode & S_IRWXO)) { // If user attempts to make file world-writeable, downgrade it to group-writable by BG
 				if (fchownat(dirfd, path, -1, LWIP_CF_TRUSTED_GROUP_GID, 0) == 0) {
 					LWIP_HIGHI_VIOLATION("Making file %s as group writable instead of worldwritable", path);
 					*p3_ptr &= ~(S_IWOTH);

@@ -10,7 +10,7 @@ configFile="include/common/lwip_common.h"
 
 
 function replaceEntry {
-	sed "s/$1/$2/g" "$configFile" > $TFILE && mv $TFILE "$configFile"
+	sed "s/$1/$2/g" "$configFile" > $TFILE && mv $TFILE "$configFile" # replace all occurrences of first arg with second arg in $configFile
 }
 
 

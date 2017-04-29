@@ -46,7 +46,7 @@ compile: $(executable)
 	$(SED) 's,\($*\.o\) *:,\1 $@: ,' > $@.tmp
 	$(MV) $@.tmp $@
 
-
+# Temporarily restore original libraries while compiling
 define preCompileFunc
   echo "pre"
   restoreLib
