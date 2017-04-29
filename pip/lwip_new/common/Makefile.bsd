@@ -1,7 +1,0 @@
-.PATH: ${LWIP_BASE_DIR}/lwip_new/common
-
-SRCS+= ac.c lwip_ae_utils.c lwip_bufferManager.c lwip_debug.c \
-	lwip_extendedLogging.c lwip_in_utils.c lwip_level.c lwip_notifier.c \
-	lwip_redirectHelper.c lwip_trackOpen.c lwip_trusted.c lwip_utils.c \
-	strmap.c thpool.c
-

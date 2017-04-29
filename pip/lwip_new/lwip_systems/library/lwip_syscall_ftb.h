@@ -56,11 +56,4 @@ extern pt2syscall_post_handler default_highI_syscall_post_ftb[];
 extern pt2syscall_post_handler *syscall_post_ftb;
 
 
-
-//extern void (*syscall_pre_ftb[]) lwip_syscall_pre_signature;
-//extern void (*syscall_post_ftb[]) lwip_syscall_post_signature;
-
-//extern void (*default_syscall_pre_ftb[]) lwip_syscall_pre_signature;
-
-
 #endif /* __LWIP_SYSCALLFTB_H_ */

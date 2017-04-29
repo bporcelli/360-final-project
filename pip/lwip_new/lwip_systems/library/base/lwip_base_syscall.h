@@ -41,8 +41,6 @@
 #include "lwip_chown.h"
 #include "lwip_statfs.h"
 #include "lwip_link.h"
-//#include "lwip_chdir.h"
-#include "lwip_write.h"
 
 #include "lwip_ipc.h"
 
