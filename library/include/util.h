@@ -7,6 +7,7 @@
 #include <dlfcn.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/types.h>
 
 void logmsg(const char *format, ...);
 

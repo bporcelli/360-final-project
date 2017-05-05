@@ -12,5 +12,5 @@
 #define wrapper(type, name, ...) \
 	type (*_ ##name)(__VA_ARGS__); \
 	type name(__VA_ARGS__) \
-
 #endif
+
