@@ -6,18 +6,6 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" )" && pwd)"
 ## NOTE: MUST BE RUN WITH ROOT PERMISSIONS ##
 #############################################
 
-# Test to make directories:
-# Once we know the specific files and locations to 
-# install them we can change these.
-
-# mkdir ../objects
-# mkdir ../include
-# mkdir ../bin
-# mkdir ../logs
-# mkdir ../logs/error_logs
-# mkdir ../logs/install_logs
-# mkdir ../utilities
-
 # Get Ubuntu distribution and version
 # distribution=`lsb_release -i |gawk '{print $3}'`
 # distribution_release=`lsb_release -r |gawk '{print $2}'`

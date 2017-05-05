@@ -27,4 +27,4 @@ wrapper(int, open, const char *__file, int __oflag, ...) {
 
 	_open = dlsym(RTLD_NEXT, "open");
 	return _open(__file, __oflag, mode);
-}
+} 
