@@ -1,0 +1,286 @@
+#############################################################
+## List of system calls that do not need to be intercepted ##
+#############################################################
+
+sys_restart_syscall
+sys_vfork
+sys_fork
+sys_exit
+sys_clone
+sys_read - Permissions checks are done on open
+sys_write - Permissions check are done on open; benign files open for writing will be closed when a benign process becomes untrusted (e.g. through exec).
+sys_close
+sys_waitpid
+sys_creat - Wrapper around sys_open.
+sys_chdir - Maybe should intercept and allow if R has execute permission on target dir?
+sys_fchdir - "
+sys_time
+sys_break - Not implemented.
+sys_lseek - Permissions checks done on open.
+sys_getpid
+sys_setpgid
+sys_mount - Root privilege required.
+sys_umount - "
+sys_umount2 - "
+sys_setuid - Need privilege to change uid to anything other than real or saved.
+sys_stime - Not security sensitive; only executable by superuser.
+sys_ptrace - Handled by OS access controls.
+sys_alarm - Not security sensitive.
+sys_pause - "
+sys_stty - Not implemented.
+sys_gtty - "
+sys_nice - Handled by OS.
+sys_ftime - Not implemented.
+sys_sync - Not security sensitive.
+sys_syncfs - "
+sys_kill - Handled by OS.
+sys_dup - Permissions checks done on open.
+sys_dup2 - "
+sys_dup3 - "
+sys_pipe - Handled by OS.
+sys_pipe2 - "
+sys_times - Not security sensitive.
+sys_prof - Not implemented.
+sys_brk - Not security sensitive.
+sys_setgid - See sys_setuid.
+sys_signal - Not security sensitive.
+sys_acct - Handled by OS.
+sys_lock - Not implemented.
+sys_ioctl - Permissions checks done on open.
+sys_fcntl - "
+sys_mpx - Not implemented.
+sys_ulimit - Handled by OS/glibc.
+sys_oldolduname
+sys_umask
+sys_chroot - Handled by OS.
+sys_ustat
+sys_getppid
+sys_getpgrp
+sys_setsid
+sys_sigaction
+sys_siggetmask
+sys_sigsetmask
+sys_sigsuspend
+sys_sigpending
+sys_setreuid - Handled by OS.
+sys_setregid - "
+sys_sethostname - "
+sys_setrlimit - "
+sys_getrlimit - "
+sys_getrusage
+sys_gettimeofday - Handled by OS.
+sys_settimeofday - "
+sys_setgroups - "
+sys_uselib - Not typically available; otherwise handled by OS.
+sys_swapon - Handled by OS.
+sys_reboot - "
+sys_munmap
+sys_truncate
+sys_ftruncate
+sys_getpriority - Not sensitive.
+sys_setpriority - Handled by OS.
+sys_profil - Not sensitive.
+sys_ioperm - Handled by OS.
+sys_syslog - Handled by OS. glibc wrapper is klogctl(3).
+sys_setitimer - Not sensitive.
+sys_getitimer - "
+sys_iopl - Handled by OS.
+sys_vhangup - Not sensitive.
+sys_idle - Not implemented.
+sys_wait4 - Not sensitive.
+sys_swapoff - Handled by OS.
+sys_sysinfo - Not sensitive.
+sys_fsync - "
+sys_sigreturn - "
+sys_setdomainname - Handled by OS.
+sys_uname - Not sensitive.
+sys_modify_ldt
+sys_adjtimex - Handled by OS.
+sys_mprotect
+sys_sigprocmask - Not sensitive.
+sys_create_module - Handled by OS; deprecated after kernel 2.6.
+sys_init_module - Handled by OS.
+sys_delete_module - "
+sys_get_kernel_syms - Not sensitive; deprecated after 2.6.
+sys_getpgid - Not sensitive.
+sys_quotactl - Handled by OS.
+sys_bdflush - Handled by OS; deprecated after kernel 2.6.
+sys_sysfs - Not sensitive.
+sys_personality - Not sensitive.
+sys_afs_syscall - Not implemented.
+sys_setfsuid - Handled by kernel.
+sys_setfsgid - "
+sys_llseek - Not sensitive.
+sys_select - Permissions checks done on open.
+sys_flock - " + not sensitive.
+sys_msync - Not sensitive.
+sys_readv - Permissions checks done on open.
+sys_writev - "
+sys_getsid - Not sensitive.
+sys_fdatasync - Not sensitive.
+sys_sysctl - Handled by kernel; soon to be deprecated.
+sys_mlock - Handled by OS.
+sys_munlock - "
+sys_mlockall - "
+sys_munlockall - "
+sys_sched_getparam - Not sensitive.
+sys_sched_setparam - Handled by OS.
+sys_sched_setscheduler - "
+sys_sched_getscheduler - Not sensitive.
+sys_sched_yield - "
+sys_sched_get_priority_max - "
+sys_sched_get_priority_min - "
+sys_sched_rr_get_interval - "
+sys_nanosleep - "
+sys_mremap - "
+sys_setresuid - Handled by OS.
+sys_vm86 - Not sensitive.
+sys_query_module - Not sensitive; deprecated after 2.6.
+sys_poll - Permissions checks are done on open.
+sys_ppoll - "
+sys_setresgid - Handled by OS.
+sys_prctl - "
+sys_rt_sigreturn - See unprefixed version of syscall.
+sys_rt_sigaction - "
+sys_rt_sigprocmask - "
+sys_rt_sigpending - "
+sys_rt_sigtimedwait - "
+sys_rt_sigqueueinfo - "
+sys_rt_sigsuspend - "
+sys_pread - Permissions checks done on open.
+sys_pwrite - "
+sys_preadv - "
+sys_pwritev - "
+sys_getcwd - Not sensitive.
+sys_capget - "
+sys_capset - Handled by OS.
+sys_sigaltstack - " and not sensitive (?)
+sys_sendfile - Permissions checks done on open.
+sys_getpmsg - Not implemented.
+sys_putpmsg - "
+sys_getrlimit - Not sensitive.
+sys_mmap_pgoff (mmap2) - Handled by OS.
+sys_truncate64 - "
+sys_ftruncate64 - "
+sys_stat64 - Handled by intercepting stat.
+sys_lstat64 - Handled by intercepting lstat.
+sys_fstat64 - Handled by intercepting fstat64.
+sys_getegid - Effective group ID need not be hidden from untrusted process.
+sys_pivotroot - Handled by OS.
+sys_mincore - Not sensitive.
+sys_madvise - Handled by OS.
+sys_security - Not implemented.
+sys_gettid - Not sensitive.
+sys_readahead - Permissions checks done on open.
+setxattr - Handled by OS and/or not sensitive.
+lsetxattr - "
+fsetxattr - "
+getxattr - "
+lgetxattr - "
+fgetxattr - "
+listxattr - "
+llistxattr - "
+flistxattr - "
+removexattr - "
+lremovexattr - "
+fremovexattr - "
+sys_futex - Handled by OS.
+sys_sched_setaffinity - "
+sys_sched_getaffinity - Not sensitive.
+sys_set_thread_area - No glibc wrapper; handled by OS.
+sys_get_thread_area - Not sensitive.
+sys_io_setup - "
+sys_io_destroy - "
+sys_io_getevents - "
+sys_io_submit - "
+sys_io_cancel - "
+fadvise64/posix_fadvise - " + permissions checks done on open.
+sys_lookup_dcookie - Handled by OS.
+sys_epoll_create - Permissions checks done on open.
+sys_epoll_ctl - "
+sys_epoll_wait - "
+sys_epoll_pwait - "
+sys_epoll_create1 - "
+sys_remap_file_pages - Not sensitive.
+sys_set_tid_address - "
+sys_timer_create - "
+sys_timer_settime - "
+sys_timer_gettime - "
+sys_timer_getoverrun - "
+sys_timer_delete - "
+sys_clock_settime - "
+sys_clock_gettime - "
+sys_clock_getres - "
+sys_clock_nanosleep - "
+sys_tgkill - Handled by OS.
+sys_vserver - Not implemented.
+sys_mbind - Handled by OS / no wrapper (?)
+sys_get_mempolicy - Not sensitive.
+sys_set_mempolicy - " + no wrapper
+sys_mq_open - Not sensitive and/or handled by OS.
+sys_mq_unlink - "
+sys_mq_timedsend - "
+sys_mq_timedreceive - "
+sys_mq_notify - "
+sys_mq_getsetattr - "
+sys_kexec_load - Handled by OS.
+sys_waitid - Not sensitive.
+sys_add_key - Handled by OS.
+sys_request_key - "
+sys_keyctl - "
+sys_ioprio_set - Handled by OS.
+sys_ioprio_get - Not sensitive.
+sys_inotify_init - " + permissions checks done on open.
+sys_inotify_init1 - "
+sys_inotify_add_watch - "
+sys_inotify_rm_watch - "
+sys_migrate_pages - Handled by OS.
+sys_unshare - "
+sys_set_robust_list - Handled by OS.
+sys_get_robust_list - "
+sys_splice - Permissions checks done on open.
+sys_sync_file_range - " + not sensitive.
+sys_tee - Checks done on open / handled by OS.
+sys_vmsplice - "
+sys_move_pages - Handled by OS.
+sys_getcpu - Not sensitive.
+sys_signalfd - " + permissions checks done on open.
+sys_timerfd_create - Permissions checks done on open.
+sys_eventfd - "
+sys_timerfd_settime - "
+sys_timerfd_gettime - "
+sys_signalfd4 - "
+sys_eventfd2 - "
+sys_fallocate - Handled by OS.
+sys_rt_tgsigqueueinfo - " + no wrapper.
+sys_perf_event_open - Handled by OS.
+sys_recvmmsg - Handled by intercepting connect, accept, bind, etc.
+sys_fanotify_init - Handled by OS.
+sys_fanotify_mark - "
+sys_prlimit64/prlimit - Handled by OS.
+sys_name_to_handle_at - "
+sys_open_by_handle_at - "
+sys_clock_adjtime - Not sensitive/not implemented (?)
+sys_setns - Handled by OS.
+sys_process_vm_readv - "
+sys_process_vm_writev - "
+sys_kcmp - "
+sys_finit_module - Handled by OS.
+sys_listen - Not sensitive.
+sys_getsockname - "
+sys_getpeername - "
+sys_socketpair - "
+sys_send - Handled by OS.
+sys_sendto - "
+sys_recv - Handled by intercepting sendmsg/handled by OS.
+sys_recvfrom - "
+sys_recvmsg - "
+sys_shutdown - Handled by OS/not sensitive.
+sys_setsockopt - Handled by OS.
+sys_getsockopt - Not sensitive/handled by OS.
+sys_semop - "
+sys_semget - "
+sys_semctl - "
+sys_semtimedop - "
+sys_msgsnd - Handled by OS.
+sys_msgrcv - "

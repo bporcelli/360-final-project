@@ -1,0 +1,61 @@
+######################################################
+## List of system calls that need to be intercepted ##
+######################################################
+
+sys_open - see lwip_open_h.c, lwip_open_l.c
+sys_link - see lwip_link_l.c
+sys_linkat - "
+sys_symlink - "
+sys_symlinkat - "
+sys_readlink - "
+sys_readlinkat - "
+sys_unlink - see lwip_unlink_l.c
+sys_unlinkat - see lwip_unlink_l.c
+sys_rmdir - see lwip_unlink_l.c
+sys_execve - see lwip_execve_h.c, lwip_execve_l.c
+sys_mknod - see lwip_mknod.c
+sys_mknodat - see lwip_mknod.c
+sys_chmod - see lwip_chmod_h.c, lwip_chmod_l.c
+sys_fchmod - "
+sys_fchmodat - "
+sys_chown - see lwip_chown_h.c, lwip_chown_l.c
+sys_fchown - "
+sys_fchownat - "
+sys_lchown - "
+sys_stat - to provide file transparency; see lwip_stat_l.c
+sys_lstat - "
+sys_fstat - "
+sys_fstatat - "
+sys_statfs - to provide file transparency; see lwip_statfs_l.c
+sys_fstatfs - "
+sys_getuid - to provide user and group transparency; see lwip_getuid_l.c
+sys_getresuid - "
+sys_getgid - "
+sys_getresgid - "
+sys_getgroups - "
+sys_utime - to provide file transparency; see lwip_utimes.c
+sys_utimes - "
+sys_futimesat - "
+sys_utimensat - "
+sys_access - to provide file transparency; see lwip_access_h.c, lwip_access_l.c
+sys_faccessat - "
+sys_rename - to isolate untrusted processes from host filesystem; see lwip_rename_l.c
+sys_renameat - "
+sys_renameat2 - "
+sys_mkdir - to allow untrusted processes to create new directories in some cases; see 
+sys_mkdirat - "
+sys_readdir - to provide file transparency
+sys_getdents - to provide file transparency
+sys_socketcall - to provide isolation; see lwip_socket_h.c, lwip_socket_l.c
+sys_ipc - see lwip_ipc_h.c
+sys_openat - for isolation; see lwip_open_l.c, lwip_open_h.c
+sys_sendmsg - see lwip_socket_h.c, lwip_socket_l.c
+sys_bind - "
+sys_connect - "
+sys_accept - "
+sys_accept4 - "
+sys_msgget - see lwip_ipc_h.c
+sys_msgctl - "
+sys_shmat - "
+sys_shmget - "
+sys_shmctl - "
