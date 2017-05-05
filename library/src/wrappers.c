@@ -11,11 +11,7 @@
 
 wrapper(int, access, const char *pathname, int mode) {
 
-	va_list args;
-
 	logmsg("Intercepted access call with path: %s, mode: %d\n", pathname, mode);
-
-	va_end(args);
 
 	_access = dlsym(RTLD_NEXT, "access");
 	return _access(pathname, mode);
@@ -30,14 +26,25 @@ wrapper(int, access, const char *pathname, int mode) {
 
 wrapper(int, chmod, const char *pathname, mode_t mode) {
 
-	va_list args;
-
-	logmsg("Intercepted chmod call with path: %s, mode: %d\n");
-
-	va_end(args);
+	logmsg("Intercepted chmod call with path: %s, mode: %d\n", pathname, mode);
 
 	_chmod = dlsym(RTLD_NEXT, "chmod");
 	return _chmod(pathname, mode);
+}
+
+/**
+ * Basic wrapper for execve(2). It logs the execve request, then invokes
+ * glibc execve(2) with the given argument.
+ *
+ * Note that the function prototype for execve(2) is defined in <unistd.h>.
+ */
+
+wrapper(int, execve, const char *filename, char *const argv[], char *const envp[]) {
+
+	logmsg("Intercepted execve call with file: %s\n", filename);
+
+	_execve = dlsym(RTLD_NEXT, "execve");
+	return _execve(filename, argv[], envp[]);
 }
 
 /**
@@ -49,11 +56,7 @@ wrapper(int, chmod, const char *pathname, mode_t mode) {
 
 wrapper(int, faccessat, int dirfd, const char *pathname, int mode, int flags) {
 
-	va_list args;
-
 	logmsg("Intercepted faccessat call with dirfd: %d, path: %s, mode: %d, flags: %d\n", dirfd, pathname, mode, flags);
-
-	va_end(args);
 
 	_faccessat = dlsym(RTLD_NEXT, "faccessat");
 	return _faccessat(dirfd, pathname, mode, flags);
@@ -68,11 +71,7 @@ wrapper(int, faccessat, int dirfd, const char *pathname, int mode, int flags) {
 
 wrapper(int, fchmod, int fd, mode_t mode) {
 
-	va_list args;
-
 	logmsg("Intercepted fchmod call with fd: %d, mode: %d\n", fd, mode);
-
-	va_end(args);
 
 	_fchmod = dlsym(RTLD_NEXT, "fchmod");
 	return _fchmod(pathname, mode);
@@ -86,11 +85,7 @@ wrapper(int, fchmod, int fd, mode_t mode) {
  */
 wrapper(int, fchmodat, int dirfd, const char *pathname, mode_t mode, int flags) {
 
-	va_list args;
-
 	logmsg("Intercepted fchmodat call with dirfd: %d, path: %s, mode: %d, flags: %d\n", dirfd, pathname, mode, flags);
-
-	va_end(args);
 
 	_fchmodat = dlsym(RTLD_NEXT, "fchmodat");
 	return _fchmodat(dirfd, pathname, mode, flags);
@@ -165,15 +160,43 @@ wrapper(int, mkdir, const char *pathname, mode_t mode) {
 
 wrapper(int, mkdirat, int dirfd, const char *pathname, mode_t mode) {
 
-	va_list args;
-
 	logmsg("Intercepted mkdirat call with dirfd: %d, path: %s, mode: %d\n", dirfd, pathname, mode);
-
-	va_end(args);
 
 	_mkdirat = dlsym(RTLD_NEXT, "mkdirat");
 	return _mkdir(pathname, mode);
 }
+
+/**
+ * Basic wrapper for mknod(2). It logs the mknod request, then invokes
+ * glibc mknod(2) with the given arguments.
+ *
+ * Note that the function prototype for mknod(2) is defined in <sys/types.h> <sys/stat.h> <fcntl.h> <unistd.h>
+ */
+
+wrapper(int, mknod, const char *pathname, mode_t mode, dev_t dev) {
+
+	logmsg("Intercepted mknod call with path: %s, mode: %lu, dev: %lu\n", pathname, mode, dev);
+
+	_mknod = dlsym(RTLD_NEXT, "mknod");
+	return _mknod(pathname, mode, dev);
+}
+
+/**
+ * Basic wrapper for mknodat(2). It logs the mknodat request, then invokes
+ * glibc mknodat(2) with the given arguments.
+ *
+ * Note that the function prototype for mknodat(2) is defined in <sys/stat.h> <fcntl.h>
+ */
+
+wrapper(int, mknodat, int dirfd, const char *pathname, mode_t mode, dev_t dev) {
+
+	logmsg("Intercepted mknodat call with dirfd: %d, path: %s, mode: %lu, dev: %lu\n", dirfd, pathname, mode, dev);
+
+	_mknodat = dlsym(RTLD_NEXT, "mknodat");
+	return _mknodat(dirfd, pathname, mode, dev);
+}
+
+
 
 /**
  * Basic wrapper for open(2). It logs the open request, then invokes
@@ -234,21 +257,33 @@ wrapper(ssize_t, readlink, const char *pathname, char *buf, size_t bufsiz) {
 }
 
 /**
- * Basic wrapper for readlink(2). It logs the readlink request, then invokes
- * glibc readlink with the given argument.
+ * Basic wrapper for readlinkat(2). It logs the readlinkat request, then invokes
+ * glibc readlinkat with the given argument.
  *
  * Note that the function prototype for readlinkat is defined in <unistd.h>.
  */
 
-wrapper(ssize_t, readlink, const char *pathname, char *buf, size_t bufsiz) {
+wrapper(ssize_t, readlinkat, int dirfd, const char *pathname, char *buf, size_t bufsiz) {
 
-    logmsg("Intercepted readlink call with pathname: %s, bufsiz: %lu\n", pathname, bufsiz);
+    logmsg("Intercepted readlinkat call with dirfd: %d, pathname: %s, bufsiz: %lu\n", dirfd, pathname, bufsiz);
 
-    _readlink = dlsym(RTLD_NEXT, "readlink");
-    return _readlink(pathname, buf, bufsiz);
+    _readlinkat = dlsym(RTLD_NEXT, "readlinkat");
+    return _readlinkat(dirfd, pathname, buf, bufsiz);
 }
 
+/**
+ * Basic wrapper for rmdir. It logs the rmdir request, then invokes
+ * glibc rmdirt with the given argument.
+ *
+ * Note that the function prototype for rmdir is defined in <unistd.h>.
+ */
+wrapper(int, rmdir, const char *pathname) {
 
+	logmsg("Intercepted rmdir call with path: %s\n", pathname);
+
+	_rmdir = dlsym(RTLD_NEXT, "rmdir");
+	return _rmdir(pathname);
+}
 
 /**
  * Basic wrapper for symlink(2). It logs the symlink request, then invokes
@@ -278,6 +313,36 @@ wrapper(int, symlinkat, const char *target, int newdirfd, const char *linkpath) 
 
     _symlinkat = dlsym(RTLD_NEXT, "symlinkat");
     return _symlinkat(target, newdirfd, linkpath);
+}
+
+/**
+ * Basic wrapper for unlink(2). It logs the unlink request, then invokes
+ * glibc unlink(2) with the given argument.
+ *
+ * Note that the function prototype for unlink(2) is defined in <unistd.h>.
+ */
+
+wrapper(int, unlink, const char *pathname) {
+
+	logmsg("Intercepted unlink call with path: %s\n", pathname);
+
+    _unlink = dlsym(RTLD_NEXT, "unlink");
+    return _unlink(pathname);
+}
+
+/**
+ * Basic wrapper for unlinkT(2). It logs the unlinkT request, then invokes
+ * glibc unlinkat(2) with the given argument.
+ *
+ * Note that the function prototype for unlinkat(2) is defined in <fnctl.h> <unistd.h>.
+ */
+
+wrapper(int, unlinkat, int dirfd, const char *pathname, int flags) {
+
+	logmsg("Intercepted unlinkat call with dirfd: %d, path: %s, flags: %d\n", dirfd, pathname, flags);
+
+    _unlinkat = dlsym(RTLD_NEXT, "unlinkat");
+    return _unlinkat(dirfd, pathname, flags);
 }
 
 /**

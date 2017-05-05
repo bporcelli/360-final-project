@@ -7,14 +7,14 @@
 --sys_linkat - "
 --sys_symlink - "
 --sys_symlinkat - "
-sys_readlink - "
-sys_readlinkat - "
-sys_unlink - see lwip_unlink_l.c
-sys_unlinkat - see lwip_unlink_l.c
-sys_rmdir - see lwip_unlink_l.c
-sys_execve - see lwip_execve_h.c, lwip_execve_l.c
-sys_mknod - see lwip_mknod.c
-sys_mknodat - see lwip_mknod.c
+--sys_readlink - "
+--sys_readlinkat - "
+--sys_unlink - see lwip_unlink_l.c
+--sys_unlinkat - see lwip_unlink_l.c
+--sys_rmdir - see lwip_unlink_l.c
+--sys_execve - see lwip_execve_h.c, lwip_execve_l.c
+--sys_mknod - see lwip_mknod.c
+--sys_mknodat - see lwip_mknod.c
 --sys_chmod - see lwip_chmod_h.c, lwip_chmod_l.c
 --sys_fchmod - "
 --sys_fchmodat - "
