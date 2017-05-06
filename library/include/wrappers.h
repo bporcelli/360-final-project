@@ -14,3 +14,14 @@
 	type name(__VA_ARGS__) \
 #endif
 
+utimensat():
+    Since glibc 2.10:
+        POSIX_C_SOURCE >= 200809L
+    Before glibc 2.10:
+        _ATFILE_SOURCE
+       
+futimens():
+    Since glibc 2.10:
+        _POSIX_C_SOURCE >= 200809L
+    Before glibc 2.10:
+        _GNU_SOURCE

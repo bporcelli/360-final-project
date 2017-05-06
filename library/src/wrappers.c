@@ -136,6 +136,7 @@ wrapper(int, fstatat, int dirfd, const char *pathname, struct stat *statbuf, int
 	return _fstatat(dirfd, pathname, statbuf, flags);
 }
 
+
 /**
  * Basic wrapper for fstatfs(2). It logs the fstatfs request, then invokes 
  * glibc fstatfs(2) with the given argument.
@@ -149,6 +150,99 @@ wrapper(int, fstatfs, int fd, struct statfs *buf) {
 	_fstatfs = dlsym(RTLD_NEXT, "fstatfs");
 	return _fstatfs(fd, buf);
 }
+
+/**
+ * Basic wrapper for futimens(2). It logs the futimens request, then invokes
+ * glibc futimens(2) with the given arguments.
+ *
+ * Note that the function prototype for futimens(2) is defined in <sys/stat.h> <fcntl.h>.
+ */
+
+wrapper(int, futimesat, int dirfd, const char *pathname, const struct timeval times[2]) {
+
+	logmsg("Intercepted futimesat call with dirfd: %d, pathname: %s\n", dirfd, pathname);
+
+    _futimesat = dlsym(RTLD_NEXT, "futimesat");
+    return _futimesat(dirfd, pathname, times);
+}
+
+/**
+ * Basic wrapper for getgid(2). It logs the getgid request, then invokes
+ * glibc getgid(2) with the given argument.
+ *
+ * Note that the function prototype for getgid(2) is defined in <unistd.h> <sys/types.h>.
+ */
+
+wrapper(uid_t, getgid, void) {
+
+	logmsg("Intercepted getgid call:\n");
+
+	_getgid = dlsym(RTLD_NEXT, "getgid");
+	return _getgid(void);
+}
+
+/**
+ * Basic wrapper for getgroups(2). It logs the getgroups request, then invokes
+ * glibc getgroups(2) with the given argument.
+ *
+ * Note that the function prototype for getgroups(2) is defined in <unistd.h> <sys/types.h>.
+ */
+
+wrapper(int, getgroups, int size, gid_t list[]) {
+
+	logmsg("Intercepted getgroups call with size: %d\n", size);
+
+	_getgroups = dlsym(RTLD_NEXT, "getgroups");
+	return _getgroups(size, list[]);
+}
+
+
+/**
+ * Basic wrapper for getuid2). It logs the getuid request, then invokes
+ * glibc getuid(2) with the given argument.
+ *
+ * Note that the function prototype for getuid(2) is defined in <unistd.h> <sys/types.h>.
+ */
+
+wrapper(uid_t, getuid, void) {
+
+	logmsg("Intercepted getuid call:\n");
+
+	_getuid = dlsym(RTLD_NEXT, "getuid");
+	return _getuid(void);
+}
+
+/**
+ * Basic wrapper for getresuid2). It logs the getresuid request, then invokes
+ * glibc getresuid(2) with the given argument.
+ *
+ * Note that the function prototype for getresuid(2) is defined in <unistd.h>.
+ */
+
+wrapper(int, getresuid, uid_t *ruid, uid_t *euid, uid_t *suid) {
+
+	logmsg("Intercepted getresuid call with ruid: %lu, euid: %lu, suid: %lu\n", ruid, euid, suid);
+
+	_getresuid = dlsym(RTLD_NEXT, "getresuid");
+	return _getresuid(ruid, euid, suid);
+}
+
+/**
+ * Basic wrapper for getreguid2). It logs the getreguid request, then invokes
+ * glibc getreguid(2) with the given argument.
+ *
+ * Note that the function prototype for getreguid(2) is defined in <unistd.h>.
+ */
+
+wrapper(int, getresuid, gid_t *rgid, gid_t *egid, gid_t *sgid) {
+
+	logmsg("Intercepted getreguid call with rgid: %lu, egid: %lu, sgid: %lu\n", rgid, egid, sgid);
+
+	_getreguid = dlsym(RTLD_NEXT, "getresgid");
+	return _getreguid(rgid, egid, sgid);
+}
+
+
 
 /**
  * Basic wrapper for lchown(2). It logs the lchown request, then invokes
@@ -316,6 +410,21 @@ wrapper(int, puts, const char* str) {
 
     _puts = dlsym(RTLD_NEXT, "puts");
     return _puts(str);
+}
+
+/**
+ * Basic wrapper for readdir(3). It logs the readdir(3) request, then invokes
+ * glibc readdir with the given argument.
+ *
+ * Note that the function prototype for readdir(3) is defined in <dirent.h>
+ */
+
+wrapper(struct, dirent *readdir, DIR *dirp) {
+
+    logmsg("Intercepted readdir call: \n");
+
+    _readdir = dlsym(RTLD_NEXT, "readdir");
+    return _readdir(DIR *dirp);
 }
 
 /**
@@ -511,5 +620,50 @@ wrapper(ssize_t, write, int fd, const void *buf, size_t count) {
 
     _write = dlsym(RTLD_NEXT, "write");
     return _write(fd, buf, count);
+}
+
+/**
+ * Basic wrapper for utime(2). It logs the utime request, then invokes
+ * glibc utime(2) with the given arguments.
+ *
+ * Note that the function prototype for utime(2) is defined in <utime.h>.
+ */
+
+wrapper(int, utime, const char *path, const struct utimbuf *times) {
+
+	logmsg("Intercepted utime call with path: %s\n", path);
+
+    _utime = dlsym(RTLD_NEXT, "utime");
+    return _utime(path, times);
+}
+
+/**
+ * Basic wrapper for utimensat(2). It logs the utimensat request, then invokes
+ * glibc utimensat(2) with the given arguments.
+ *
+ * Note that the function prototype for utimensat(2) is defined in <utime.h>.
+ */
+
+wrapper(int, utimensat, int dirfd, const char *pathname, const struct timespec times[2], int flags) {
+
+	logmsg("Intercepted utimensat call with dirfd: %d, pathname: %s, flags: %d\n", dirfd, pathname, flags);
+
+    _utimensat = dlsym(RTLD_NEXT, "utimensat");
+    return _utimensat(dirfd, pathname, times, flags);
+}
+
+/**
+ * Basic wrapper for utimes(2). It logs the utimes request, then invokes
+ * glibc utimes(2) with the given arguments.
+ *
+ * Note that the function prototype for utimes(2) is defined in <sys/time.h>.
+ */
+
+wrapper(int, utimes, const char *filename, const struct timeval times[2]) {
+
+	logmsg("Intercepted utimes call with filename: %s\n", filename);
+
+    _utimes = dlsym(RTLD_NEXT, "utimes");
+    return _utimes(filename, times[]);
 }
 
