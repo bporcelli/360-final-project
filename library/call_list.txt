@@ -21,13 +21,20 @@
 --sys_chown - see lwip_chown_h.c, lwip_chown_l.c
 --sys_fchown - "
 --sys_fchownat - "
-sys_lchown - "
-sys_stat - to provide file transparency; see lwip_stat_l.c
-sys_lstat - "
-sys_fstat - "
-sys_fstatat - "
-sys_statfs - to provide file transparency; see lwip_statfs_l.c
-sys_fstatfs - "
+--sys_lchown - "
+--sys_stat - to provide file transparency; see lwip_stat_l.c
+--sys_lstat - "
+--sys_fstat - "
+--sys_fstatat - "
+--sys_statfs - to provide file transparency; see lwip_statfs_l.c
+--sys_fstatfs - "
+--sys_access - to provide file transparency; see lwip_access_h.c, lwip_access_l.c
+--sys_faccessat - "
+--sys_rename - to isolate untrusted processes from host filesystem; see lwip_rename_l.c
+--sys_renameat - "
+--sys_renameat2 - "
+--sys_mkdir - to allow untrusted processes to create new directories in some cases; see 
+--sys_mkdirat - "
 sys_getuid - to provide user and group transparency; see lwip_getuid_l.c
 sys_getresuid - "
 sys_getgid - "
@@ -37,13 +44,6 @@ sys_utime - to provide file transparency; see lwip_utimes.c
 sys_utimes - "
 sys_futimesat - "
 sys_utimensat - "
---sys_access - to provide file transparency; see lwip_access_h.c, lwip_access_l.c
---sys_faccessat - "
-sys_rename - to isolate untrusted processes from host filesystem; see lwip_rename_l.c
-sys_renameat - "
-sys_renameat2 - "
---sys_mkdir - to allow untrusted processes to create new directories in some cases; see 
---sys_mkdirat - "
 sys_readdir - to provide file transparency
 sys_getdents - to provide file transparency
 sys_socketcall - to provide isolation; see lwip_socket_h.c, lwip_socket_l.c
