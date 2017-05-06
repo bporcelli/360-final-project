@@ -1,11 +1,16 @@
 #!/bin/bash
 
-CWD=$(dirname $0)
-cd $CWD
+######################################
+## Installs glibc wrapper libraries ##
+######################################
+
 
 #############################################
 ## NOTE: MUST BE RUN WITH ROOT PERMISSIONS ##
 #############################################
+
+CWD=$(dirname $0)
+cd $CWD
 
 ##############################
 ## Compile shared libraries ##
