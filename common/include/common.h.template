@@ -1,0 +1,19 @@
+#ifndef __SIP_COMMON_H__
+#define __SIP_COMMON_H__
+ 
+#define SIP_UNTRUSTED_ID 1004
+
+#define SIP_LOG_PATH "/sip/logs"
+#define SIP_DAEMON_PATH "/sip/executables/daemon"
+#define SIP_REDIRECTION_PATH "/tmp/redirection"
+
+#define SIP_CF_ROOT_USERID 0
+
+#define SIP_REAL_USERNAME BASH_CONFIG_REAL_USERNAME
+#define SIP_REAL_USERID BASH_CONFIG_REAL_USER_UID
+#define SIP_UNTRUSTED_USERID BASH_CONFIG_UNTRUSTED_UID
+#define SIP_TRUSTED_GROUP_GID BASH_CONFIG_TRUSTED_GID
+
+#define SIP_DAEMON_COMMUNICATION_PATH "/home/" SIP_REAL_USERNAME "/sip_daemon"
+
+#endif /*__SIP_COMMON_H__ */

@@ -1,7 +1,11 @@
 #ifndef WRAPPER_H
-#define WRAPPER_H 
+#define WRAPPER_H
 
-#include "util.h"
+#include <utime.h>      // struct utimbuf
+#include <sys/statfs.h> // struct statfs
+#include <sys/stat.h>   // struct stat
+#include <fcntl.h>      // S_* constants
+#include <dlfcn.h>      // dlsym and RTLD_NEXT
 
 /* Ensure needed constants are defined */ 
 #ifndef O_TMPFILE
@@ -9,19 +13,8 @@
 #endif
 
 /* Macro to help with wrapper definition */
-#define wrapper(type, name, ...) \
+#define sip_wrapper(type, name, ...) \
 	type (*_ ##name)(__VA_ARGS__); \
 	type name(__VA_ARGS__) \
-#endif
 
-utimensat():
-    Since glibc 2.10:
-        POSIX_C_SOURCE >= 200809L
-    Before glibc 2.10:
-        _ATFILE_SOURCE
-       
-futimens():
-    Since glibc 2.10:
-        _POSIX_C_SOURCE >= 200809L
-    Before glibc 2.10:
-        _GNU_SOURCE
+#endif

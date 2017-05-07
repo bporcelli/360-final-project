@@ -1,6 +1,9 @@
 #define _GNU_SOURCE /* Must include to use RTLD_NEXT pseudo-handle with dlsym(3) */
 
+#include <stdarg.h>
+#include <sys/stat.h>
 #include "wrappers.h"
+#include "logger.h"
 
 /**
  * Basic wrapper for access(2). It logs the access request, then invokes
@@ -9,9 +12,9 @@
  * Note that the function prototype for access(2) is defined in <fcntl.h> and <unistd.h>.
  */
 
-wrapper(int, access, const char *pathname, int mode) {
+sip_wrapper(int, access, const char *pathname, int mode) {
 
-	logmsg("Intercepted access call with path: %s, mode: %d\n", pathname, mode);
+	sip_info("Intercepted access call with path: %s, mode: %d\n", pathname, mode);
 
 	_access = dlsym(RTLD_NEXT, "access");
 	return _access(pathname, mode);
@@ -24,9 +27,9 @@ wrapper(int, access, const char *pathname, int mode) {
  * Note that the function prototype for chmod(2) is defined in < >.
  */
 
-wrapper(int, chmod, const char *pathname, mode_t mode) {
+sip_wrapper(int, chmod, const char *pathname, mode_t mode) {
 
-	logmsg("Intercepted chmod call with path: %s, mode: %d\n", pathname, mode);
+	sip_info("Intercepted chmod call with path: %s, mode: %d\n", pathname, mode);
 
 	_chmod = dlsym(RTLD_NEXT, "chmod");
 	return _chmod(pathname, mode);
@@ -39,12 +42,12 @@ wrapper(int, chmod, const char *pathname, mode_t mode) {
  * Note that the function prototype for execve(2) is defined in <unistd.h>.
  */
 
-wrapper(int, execve, const char *filename, char *const argv[], char *const envp[]) {
+sip_wrapper(int, execve, const char *filename, char *const argv[], char *const envp[]) {
 
-	logmsg("Intercepted execve call with file: %s\n", filename);
+	sip_info("Intercepted execve call with file: %s\n", filename);
 
 	_execve = dlsym(RTLD_NEXT, "execve");
-	return _execve(filename, argv[], envp[]);
+	return _execve(filename, argv, envp);
 }
 
 /**
@@ -54,9 +57,9 @@ wrapper(int, execve, const char *filename, char *const argv[], char *const envp[
  * Note that the function prototype for faccessat(2) is defined in <fcntl.h> and <unistd.h>.
  */
 
-wrapper(int, faccessat, int dirfd, const char *pathname, int mode, int flags) {
+sip_wrapper(int, faccessat, int dirfd, const char *pathname, int mode, int flags) {
 
-	logmsg("Intercepted faccessat call with dirfd: %d, path: %s, mode: %d, flags: %d\n", dirfd, pathname, mode, flags);
+	sip_info("Intercepted faccessat call with dirfd: %d, path: %s, mode: %d, flags: %d\n", dirfd, pathname, mode, flags);
 
 	_faccessat = dlsym(RTLD_NEXT, "faccessat");
 	return _faccessat(dirfd, pathname, mode, flags);
@@ -69,12 +72,12 @@ wrapper(int, faccessat, int dirfd, const char *pathname, int mode, int flags) {
  * Note that the function prototype for fchmod(2) is defined in <sys/stat.h>.
  */
 
-wrapper(int, fchmod, int fd, mode_t mode) {
+sip_wrapper(int, fchmod, int fd, mode_t mode) {
 
-	logmsg("Intercepted fchmod call with fd: %d, mode: %d\n", fd, mode);
+	sip_info("Intercepted fchmod call with fd: %d, mode: %d\n", fd, mode);
 
 	_fchmod = dlsym(RTLD_NEXT, "fchmod");
-	return _fchmod(pathname, mode);
+	return _fchmod(fd, mode);
 }
 
 /**
@@ -83,9 +86,9 @@ wrapper(int, fchmod, int fd, mode_t mode) {
  *
  * Note that the function prototype for fchmodat(2) is defined in <sys/stat.h>.
  */
-wrapper(int, fchmodat, int dirfd, const char *pathname, mode_t mode, int flags) {
+sip_wrapper(int, fchmodat, int dirfd, const char *pathname, mode_t mode, int flags) {
 
-	logmsg("Intercepted fchmodat call with dirfd: %d, path: %s, mode: %d, flags: %d\n", dirfd, pathname, mode, flags);
+	sip_info("Intercepted fchmodat call with dirfd: %d, path: %s, mode: %d, flags: %d\n", dirfd, pathname, mode, flags);
 
 	_fchmodat = dlsym(RTLD_NEXT, "fchmodat");
 	return _fchmodat(dirfd, pathname, mode, flags);
@@ -98,9 +101,9 @@ wrapper(int, fchmodat, int dirfd, const char *pathname, mode_t mode, int flags) 
  * Note that the function prototype for fchownat(2) is defined in <unistd.h> <fcntl.h>.
  */
 
-wrapper(int, fchownat, int dirfd, const char *pathname, uid_t owner, gid_t group, int flags) {
+sip_wrapper(int, fchownat, int dirfd, const char *pathname, uid_t owner, gid_t group, int flags) {
 
-	logmsg("Intercepted fchownat call with dirfd: %d, path: %s, uid: %lu, gid: %lu, flags: %d\n", dirfd, pathname, owner, group, flags);
+	sip_info("Intercepted fchownat call with dirfd: %d, path: %s, uid: %lu, gid: %lu, flags: %d\n", dirfd, pathname, owner, group, flags);
 
 	_fchownat = dlsym(RTLD_NEXT, "fchownat");
 	return _fchownat(dirfd, pathname, owner, group, flags);
@@ -113,9 +116,9 @@ wrapper(int, fchownat, int dirfd, const char *pathname, uid_t owner, gid_t group
  * Note that the function prototype for fstat(2) is defined in <unistd.h> <sys/types.h> <sys/stat.h>.
  */
 
-wrapper(int, fstat, int fd, struct stat *statbuf) {
+sip_wrapper(int, fstat, int fd, struct stat *statbuf) {
 
-	logmsg("Intercepted fstat call with fd: %d\n", fd);
+	sip_info("Intercepted fstat call with fd: %d\n", fd);
 
 	_fstat = dlsym(RTLD_NEXT, "fstat");
 	return _fstat(fd, statbuf);
@@ -128,9 +131,9 @@ wrapper(int, fstat, int fd, struct stat *statbuf) {
  * Note that the function prototype for fstatat(2) is defined in <fnctl.h> <sys/stat.h>.
  */
 
-wrapper(int, fstatat, int dirfd, const char *pathname, struct stat *statbuf, int flags) {
+sip_wrapper(int, fstatat, int dirfd, const char *pathname, struct stat *statbuf, int flags) {
 
-	logmsg("Intercepted fstatat call with dirfd: %d, path: %s, flags: %d\n", dirfd, pathname, flags);
+	sip_info("Intercepted fstatat call with dirfd: %d, path: %s, flags: %d\n", dirfd, pathname, flags);
 
 	_fstatat = dlsym(RTLD_NEXT, "fstatat");
 	return _fstatat(dirfd, pathname, statbuf, flags);
@@ -143,9 +146,9 @@ wrapper(int, fstatat, int dirfd, const char *pathname, struct stat *statbuf, int
  *
  * Note that the function prototype for fstatfs(2) is defined in <sys/vfs.h>
  */
-wrapper(int, fstatfs, int fd, struct statfs *buf) {
+sip_wrapper(int, fstatfs, int fd, struct statfs *buf) {
 
-	logmsg("Intercepted fstatfs call with fd: %d\n", fd);
+	sip_info("Intercepted fstatfs call with fd: %d\n", fd);
 
 	_fstatfs = dlsym(RTLD_NEXT, "fstatfs");
 	return _fstatfs(fd, buf);
@@ -158,9 +161,9 @@ wrapper(int, fstatfs, int fd, struct statfs *buf) {
  * Note that the function prototype for futimens(2) is defined in <sys/stat.h> <fcntl.h>.
  */
 
-wrapper(int, futimesat, int dirfd, const char *pathname, const struct timeval times[2]) {
+sip_wrapper(int, futimesat, int dirfd, const char *pathname, const struct timeval times[2]) {
 
-	logmsg("Intercepted futimesat call with dirfd: %d, pathname: %s\n", dirfd, pathname);
+	sip_info("Intercepted futimesat call with dirfd: %d, pathname: %s\n", dirfd, pathname);
 
     _futimesat = dlsym(RTLD_NEXT, "futimesat");
     return _futimesat(dirfd, pathname, times);
@@ -173,12 +176,12 @@ wrapper(int, futimesat, int dirfd, const char *pathname, const struct timeval ti
  * Note that the function prototype for getgid(2) is defined in <unistd.h> <sys/types.h>.
  */
 
-wrapper(uid_t, getgid, void) {
+sip_wrapper(uid_t, getgid, void) {
 
-	logmsg("Intercepted getgid call:\n");
+	sip_info("Intercepted getgid call:\n");
 
 	_getgid = dlsym(RTLD_NEXT, "getgid");
-	return _getgid(void);
+	return _getgid();
 }
 
 /**
@@ -188,12 +191,12 @@ wrapper(uid_t, getgid, void) {
  * Note that the function prototype for getgroups(2) is defined in <unistd.h> <sys/types.h>.
  */
 
-wrapper(int, getgroups, int size, gid_t list[]) {
+sip_wrapper(int, getgroups, int size, gid_t list[]) {
 
-	logmsg("Intercepted getgroups call with size: %d\n", size);
+	sip_info("Intercepted getgroups call with size: %d\n", size);
 
 	_getgroups = dlsym(RTLD_NEXT, "getgroups");
-	return _getgroups(size, list[]);
+	return _getgroups(size, list);
 }
 
 
@@ -204,12 +207,12 @@ wrapper(int, getgroups, int size, gid_t list[]) {
  * Note that the function prototype for getuid(2) is defined in <unistd.h> <sys/types.h>.
  */
 
-wrapper(uid_t, getuid, void) {
+sip_wrapper(uid_t, getuid, void) {
 
-	logmsg("Intercepted getuid call:\n");
+	sip_info("Intercepted getuid call:\n");
 
 	_getuid = dlsym(RTLD_NEXT, "getuid");
-	return _getuid(void);
+	return _getuid();
 }
 
 /**
@@ -219,9 +222,9 @@ wrapper(uid_t, getuid, void) {
  * Note that the function prototype for getresuid(2) is defined in <unistd.h>.
  */
 
-wrapper(int, getresuid, uid_t *ruid, uid_t *euid, uid_t *suid) {
+sip_wrapper(int, getresuid, uid_t *ruid, uid_t *euid, uid_t *suid) {
 
-	logmsg("Intercepted getresuid call with ruid: %lu, euid: %lu, suid: %lu\n", ruid, euid, suid);
+	sip_info("Intercepted getresuid call with ruid: %lu, euid: %lu, suid: %lu\n", ruid, euid, suid);
 
 	_getresuid = dlsym(RTLD_NEXT, "getresuid");
 	return _getresuid(ruid, euid, suid);
@@ -234,9 +237,9 @@ wrapper(int, getresuid, uid_t *ruid, uid_t *euid, uid_t *suid) {
  * Note that the function prototype for getreguid(2) is defined in <unistd.h>.
  */
 
-wrapper(int, getresuid, gid_t *rgid, gid_t *egid, gid_t *sgid) {
+sip_wrapper(int, getreguid, gid_t *rgid, gid_t *egid, gid_t *sgid) {
 
-	logmsg("Intercepted getreguid call with rgid: %lu, egid: %lu, sgid: %lu\n", rgid, egid, sgid);
+	sip_info("Intercepted getreguid call with rgid: %lu, egid: %lu, sgid: %lu\n", rgid, egid, sgid);
 
 	_getreguid = dlsym(RTLD_NEXT, "getresgid");
 	return _getreguid(rgid, egid, sgid);
@@ -251,9 +254,9 @@ wrapper(int, getresuid, gid_t *rgid, gid_t *egid, gid_t *sgid) {
  * Note that the function prototype for lchown(2) is defined in <unistd.h>.
  */
 
-wrapper(int, lchown, const char *pathname, uid_t owner, gid_t group) {
+sip_wrapper(int, lchown, const char *pathname, uid_t owner, gid_t group) {
 
-	logmsg("Intercepted lchown call with path: %s, uid: %lu, gid: %lu\n", pathname, owner, group);
+	sip_info("Intercepted lchown call with path: %s, uid: %lu, gid: %lu\n", pathname, owner, group);
 
 	_lchown = dlsym(RTLD_NEXT, "lchown");
 	return _lchown(pathname, owner, group);
@@ -268,9 +271,9 @@ wrapper(int, lchown, const char *pathname, uid_t owner, gid_t group) {
  * Note that the function prototype for link(2) is defined in <unistd.h>
  */
 
-wrapper(int, link, const char *oldpath, const char *newpath) {
+sip_wrapper(int, link, const char *oldpath, const char *newpath) {
 
-	logmsg("Intercepted link call with oldpath: %s, newpath: %s\n", oldpath, newpath);
+	sip_info("Intercepted link call with oldpath: %s, newpath: %s\n", oldpath, newpath);
 
 	_link = dlsym(RTLD_NEXT, "link");
 	return _link(oldpath, newpath);
@@ -282,12 +285,12 @@ wrapper(int, link, const char *oldpath, const char *newpath) {
  *
  * Note that the function prototype for linkat(2) is defined in <fnctl.h> <unistd.h>
  */
-wrapper(int, linkat, int olddirfd, const char *oldpath, int newdirfd, const char *newpath, int flags) {
+sip_wrapper(int, linkat, int olddirfd, const char *oldpath, int newdirfd, const char *newpath, int flags) {
 
-	logmsg("Intercepted linkat call with olddir: %d, oldpath: %s, newdir: %d, newpath: %s\n", olddirfd, oldpath, newdirfd, newpath);
+	sip_info("Intercepted linkat call with olddir: %d, oldpath: %s, newdir: %d, newpath: %s\n", olddirfd, oldpath, newdirfd, newpath);
 
 	_linkat = dlsym(RTLD_NEXT, "linkat");
-	return _linkat(olddirfd,oldpath, newdirfd, newpath);
+	return _linkat(olddirfd, oldpath, newdirfd, newpath, flags);
 }
 
 /**
@@ -296,9 +299,9 @@ wrapper(int, linkat, int olddirfd, const char *oldpath, int newdirfd, const char
  *
  * Note that the function prototype for lstat(2) is defined in <sys/types.h> <sys/stat.h> <unistd.h>
  */
-wrapper(int, lstat, const char *pathname, struct stat *statbuf) {
+sip_wrapper(int, lstat, const char *pathname, struct stat *statbuf) {
 
-	logmsg("Intercepted lstat call with path: %s\n", pathname);
+	sip_info("Intercepted lstat call with path: %s\n", pathname);
 
 	_lstat = dlsym(RTLD_NEXT, "lstat");
 	return _lstat(pathname, statbuf);
@@ -313,9 +316,9 @@ wrapper(int, lstat, const char *pathname, struct stat *statbuf) {
  * Note that the function prototype for mkdir(2) is defined in <sys/types.h>.
  */
 
-wrapper(int, mkdir, const char *pathname, mode_t mode) {
+sip_wrapper(int, mkdir, const char *pathname, mode_t mode) {
 
-	logmsg("Intercepted mkdir call with path: %s, mode: %d\n", pathname, mode);
+	sip_info("Intercepted mkdir call with path: %s, mode: %d\n", pathname, mode);
 
 	_mkdir = dlsym(RTLD_NEXT, "mkdir");
 	return _mkdir(pathname, mode);
@@ -329,9 +332,9 @@ wrapper(int, mkdir, const char *pathname, mode_t mode) {
  * and <sys/stat.h>.
  */
 
-wrapper(int, mkdirat, int dirfd, const char *pathname, mode_t mode) {
+sip_wrapper(int, mkdirat, int dirfd, const char *pathname, mode_t mode) {
 
-	logmsg("Intercepted mkdirat call with dirfd: %d, path: %s, mode: %d\n", dirfd, pathname, mode);
+	sip_info("Intercepted mkdirat call with dirfd: %d, path: %s, mode: %d\n", dirfd, pathname, mode);
 
 	_mkdirat = dlsym(RTLD_NEXT, "mkdirat");
 	return _mkdir(pathname, mode);
@@ -344,9 +347,9 @@ wrapper(int, mkdirat, int dirfd, const char *pathname, mode_t mode) {
  * Note that the function prototype for mknod(2) is defined in <sys/types.h> <sys/stat.h> <fcntl.h> <unistd.h>
  */
 
-wrapper(int, mknod, const char *pathname, mode_t mode, dev_t dev) {
+sip_wrapper(int, mknod, const char *pathname, mode_t mode, dev_t dev) {
 
-	logmsg("Intercepted mknod call with path: %s, mode: %lu, dev: %lu\n", pathname, mode, dev);
+	sip_info("Intercepted mknod call with path: %s, mode: %lu, dev: %lu\n", pathname, mode, dev);
 
 	_mknod = dlsym(RTLD_NEXT, "mknod");
 	return _mknod(pathname, mode, dev);
@@ -359,9 +362,9 @@ wrapper(int, mknod, const char *pathname, mode_t mode, dev_t dev) {
  * Note that the function prototype for mknodat(2) is defined in <sys/stat.h> <fcntl.h>
  */
 
-wrapper(int, mknodat, int dirfd, const char *pathname, mode_t mode, dev_t dev) {
+sip_wrapper(int, mknodat, int dirfd, const char *pathname, mode_t mode, dev_t dev) {
 
-	logmsg("Intercepted mknodat call with dirfd: %d, path: %s, mode: %lu, dev: %lu\n", dirfd, pathname, mode, dev);
+	sip_info("Intercepted mknodat call with dirfd: %d, path: %s, mode: %lu, dev: %lu\n", dirfd, pathname, mode, dev);
 
 	_mknodat = dlsym(RTLD_NEXT, "mknodat");
 	return _mknodat(dirfd, pathname, mode, dev);
@@ -376,7 +379,7 @@ wrapper(int, mknodat, int dirfd, const char *pathname, mode_t mode, dev_t dev) {
  * Note that the function prototype for open(2) is defined in <fcntl.h>.
  */
 
-wrapper(int, open, const char *__file, int __oflag, ...) {
+sip_wrapper(int, open, const char *__file, int __oflag, ...) {
 	va_list args;
 
 	mode_t mode = 0;
@@ -388,7 +391,7 @@ wrapper(int, open, const char *__file, int __oflag, ...) {
 	if (__oflag & O_CREAT || __oflag & O_TMPFILE)
 		mode = va_arg(args, mode_t);
 
-	logmsg("intercepted open call with file=%s, flags=%d, mode=%d\n", __file, __oflag, mode);
+	sip_info("intercepted open call with file=%s, flags=%d, mode=%d\n", __file, __oflag, mode);
 
 	/* Destory va list */
 	va_end(args);
@@ -398,45 +401,15 @@ wrapper(int, open, const char *__file, int __oflag, ...) {
 }
 
 /**
- * Basic wrapper for puts(3). It logs the puts request, then invokes
- * glibc puts(3) with the given argument.
- *
- * Note that the function prototype for puts(3) is defined in <stdio.h>.
- */
-
-wrapper(int, puts, const char* str) {
-
-    logmsg("Intercepted puts call with string: %s\n", str);
-
-    _puts = dlsym(RTLD_NEXT, "puts");
-    return _puts(str);
-}
-
-/**
- * Basic wrapper for readdir(3). It logs the readdir(3) request, then invokes
- * glibc readdir with the given argument.
- *
- * Note that the function prototype for readdir(3) is defined in <dirent.h>
- */
-
-wrapper(struct, dirent *readdir, DIR *dirp) {
-
-    logmsg("Intercepted readdir call: \n");
-
-    _readdir = dlsym(RTLD_NEXT, "readdir");
-    return _readdir(DIR *dirp);
-}
-
-/**
  * Basic wrapper for readlink(2). It logs the readlink request, then invokes
  * glibc readlink with the given argument.
  *
  * Note that the function prototype for readlinkat is defined in <unistd.h>.
  */
 
-wrapper(ssize_t, readlink, const char *pathname, char *buf, size_t bufsiz) {
+sip_wrapper(ssize_t, readlink, const char *pathname, char *buf, size_t bufsiz) {
 
-    logmsg("Intercepted readlink call with pathname: %s, bufsiz: %lu\n", pathname, bufsiz);
+    sip_info("Intercepted readlink call with pathname: %s, bufsiz: %lu\n", pathname, bufsiz);
 
     _readlink = dlsym(RTLD_NEXT, "readlink");
     return _readlink(pathname, buf, bufsiz);
@@ -449,9 +422,9 @@ wrapper(ssize_t, readlink, const char *pathname, char *buf, size_t bufsiz) {
  * Note that the function prototype for readlinkat is defined in <unistd.h>.
  */
 
-wrapper(ssize_t, readlinkat, int dirfd, const char *pathname, char *buf, size_t bufsiz) {
+sip_wrapper(ssize_t, readlinkat, int dirfd, const char *pathname, char *buf, size_t bufsiz) {
 
-    logmsg("Intercepted readlinkat call with dirfd: %d, pathname: %s, bufsiz: %lu\n", dirfd, pathname, bufsiz);
+    sip_info("Intercepted readlinkat call with dirfd: %d, pathname: %s, bufsiz: %lu\n", dirfd, pathname, bufsiz);
 
     _readlinkat = dlsym(RTLD_NEXT, "readlinkat");
     return _readlinkat(dirfd, pathname, buf, bufsiz);
@@ -464,9 +437,9 @@ wrapper(ssize_t, readlinkat, int dirfd, const char *pathname, char *buf, size_t 
  * Note that the function prototype for rename is defined in <stdio.h>.
  */
 
-wrapper(int, rename, const char *oldpath, const char *newpath) {
+sip_wrapper(int, rename, const char *oldpath, const char *newpath) {
 
-    logmsg("Intercepted rename call with oldpath: %s, newpath: %s\n", oldpath, newpath);
+    sip_info("Intercepted rename call with oldpath: %s, newpath: %s\n", oldpath, newpath);
 
     _rename = dlsym(RTLD_NEXT, "rename");
     return _rename(oldpath, newpath);
@@ -479,12 +452,12 @@ wrapper(int, rename, const char *oldpath, const char *newpath) {
  * Note that the function prototype for renameat is defined in <fcntl.h> <stdio.h>.
  */
 
-wrapper(int, renameat, int olddirfd, const char *oldpath, int newdirfd, const char *newpath) {
+sip_wrapper(int, renameat, int olddirfd, const char *oldpath, int newdirfd, const char *newpath) {
 
-    logmsg("Intercepted renameat call with olddirfd: %s, oldpath: %s, newdirfd: %d\n", olddirfd, oldpath, newpath);
+    sip_info("Intercepted renameat call with olddirfd: %s, oldpath: %s, newdirfd: %d\n", olddirfd, oldpath, newpath);
 
     _renameat = dlsym(RTLD_NEXT, "renameat");
-    return _renameat(olddirfd, oldpath, newpath);
+    return _renameat(olddirfd, oldpath, newdirfd, newpath);
 }
 
 /**
@@ -494,9 +467,9 @@ wrapper(int, renameat, int olddirfd, const char *oldpath, int newdirfd, const ch
  * Note that the function prototype for renameat2 is defined in <fcntl.h> <stdio.h>.
  */
 
-wrapper(int, renameat2, int olddirfd, const char *oldpath, int newdirfd, const char *newpath, unsigned int flags) {
+sip_wrapper(int, renameat2, int olddirfd, const char *oldpath, int newdirfd, const char *newpath, unsigned int flags) {
 
-    logmsg("Intercepted renameatat2 call with olddirfd: %s, oldpath: %s, newdirfd: %d, newpath: %s, flags: %d\n", 
+    sip_info("Intercepted renameatat2 call with olddirfd: %s, oldpath: %s, newdirfd: %d, newpath: %s, flags: %d\n", 
     	olddirfd, oldpath, newdirfd, newpath, flags);
 
     _renameat2 = dlsym(RTLD_NEXT, "renameat2");
@@ -511,9 +484,9 @@ wrapper(int, renameat2, int olddirfd, const char *oldpath, int newdirfd, const c
  *
  * Note that the function prototype for rmdir is defined in <unistd.h>.
  */
-wrapper(int, rmdir, const char *pathname) {
+sip_wrapper(int, rmdir, const char *pathname) {
 
-	logmsg("Intercepted rmdir call with path: %s\n", pathname);
+	sip_info("Intercepted rmdir call with path: %s\n", pathname);
 
 	_rmdir = dlsym(RTLD_NEXT, "rmdir");
 	return _rmdir(pathname);
@@ -525,9 +498,9 @@ wrapper(int, rmdir, const char *pathname) {
  *
  * Note that the function prototype for stat(2) is defined in <sys/types.h> <sys/stat.h> <unistd.h>
  */
-wrapper(int, stat, const char *pathname, struct stat *statbuf) {
+sip_wrapper(int, stat, const char *pathname, struct stat *statbuf) {
 
-	logmsg("Intercepted stat call with path: %s\n", pathname);
+	sip_info("Intercepted stat call with path: %s\n", pathname);
 
 	_stat = dlsym(RTLD_NEXT, "stat");
 	return _stat(pathname, statbuf);
@@ -539,12 +512,12 @@ wrapper(int, stat, const char *pathname, struct stat *statbuf) {
  *
  * Note that the function prototype for statfs(2) is defined in <sys/vfs.h>
  */
-wrapper(int, statfs, const char *path, struct statfs *buf) {
+sip_wrapper(int, statfs, const char *path, struct statfs *buf) {
 
-	logmsg("Intercepted statfs call with path: %s\n", pathname);
+	sip_info("Intercepted statfs call with path: %s\n", path);
 
 	_statfs = dlsym(RTLD_NEXT, "statfs");
-	return _statfs(pathname, buf);
+	return _statfs(path, buf);
 }
 
 /**
@@ -554,9 +527,9 @@ wrapper(int, statfs, const char *path, struct statfs *buf) {
  * Note that the function prototype for symlink(2) is defined in <unistd.h>.
  */
 
-wrapper(int, symlink, const char *target, const char *linkpath) {
+sip_wrapper(int, symlink, const char *target, const char *linkpath) {
 
-	logmsg("Intercepted symlink call with target: %s, linkpath: %s\n", target, linkpath);
+	sip_info("Intercepted symlink call with target: %s, linkpath: %s\n", target, linkpath);
 
     _symlink = dlsym(RTLD_NEXT, "symlink");
     return _symlink(target, linkpath);
@@ -569,9 +542,9 @@ wrapper(int, symlink, const char *target, const char *linkpath) {
  * Note that the function prototype for symlinkat(2) is defined in <fnctl.h> <unistd.h>.
  */
 
-wrapper(int, symlinkat, const char *target, int newdirfd, const char *linkpath) {
+sip_wrapper(int, symlinkat, const char *target, int newdirfd, const char *linkpath) {
 
-	logmsg("Intercepted symlinkat call with target: %s, newdirfd: %d, linkpath: %s\n", target, newdirfd, linkpath);
+	sip_info("Intercepted symlinkat call with target: %s, newdirfd: %d, linkpath: %s\n", target, newdirfd, linkpath);
 
     _symlinkat = dlsym(RTLD_NEXT, "symlinkat");
     return _symlinkat(target, newdirfd, linkpath);
@@ -584,9 +557,9 @@ wrapper(int, symlinkat, const char *target, int newdirfd, const char *linkpath) 
  * Note that the function prototype for unlink(2) is defined in <unistd.h>.
  */
 
-wrapper(int, unlink, const char *pathname) {
+sip_wrapper(int, unlink, const char *pathname) {
 
-	logmsg("Intercepted unlink call with path: %s\n", pathname);
+	sip_info("Intercepted unlink call with path: %s\n", pathname);
 
     _unlink = dlsym(RTLD_NEXT, "unlink");
     return _unlink(pathname);
@@ -599,9 +572,9 @@ wrapper(int, unlink, const char *pathname) {
  * Note that the function prototype for unlinkat(2) is defined in <fnctl.h> <unistd.h>.
  */
 
-wrapper(int, unlinkat, int dirfd, const char *pathname, int flags) {
+sip_wrapper(int, unlinkat, int dirfd, const char *pathname, int flags) {
 
-	logmsg("Intercepted unlinkat call with dirfd: %d, path: %s, flags: %d\n", dirfd, pathname, flags);
+	sip_info("Intercepted unlinkat call with dirfd: %d, path: %s, flags: %d\n", dirfd, pathname, flags);
 
     _unlinkat = dlsym(RTLD_NEXT, "unlinkat");
     return _unlinkat(dirfd, pathname, flags);
@@ -614,9 +587,11 @@ wrapper(int, unlinkat, int dirfd, const char *pathname, int flags) {
  * Note that the function prototype for write(2) is defined in <unistd.h>.
  */
 
-wrapper(ssize_t, write, int fd, const void *buf, size_t count) {
+sip_wrapper(ssize_t, write, int fd, const void *buf, size_t count) {
 
-	logmsg("Intercepted write call with fd: %d, count: %lu\n", fd, count);
+	// Don't print log message for now -- wreaks havoc if you try to read log file
+	// e.g. with a program like cat
+	// sip_info("Intercepted write call with fd: %d, count: %lu\n", fd, count);
 
     _write = dlsym(RTLD_NEXT, "write");
     return _write(fd, buf, count);
@@ -629,9 +604,9 @@ wrapper(ssize_t, write, int fd, const void *buf, size_t count) {
  * Note that the function prototype for utime(2) is defined in <utime.h>.
  */
 
-wrapper(int, utime, const char *path, const struct utimbuf *times) {
+sip_wrapper(int, utime, const char *path, const struct utimbuf *times) {
 
-	logmsg("Intercepted utime call with path: %s\n", path);
+	sip_info("Intercepted utime call with path: %s\n", path);
 
     _utime = dlsym(RTLD_NEXT, "utime");
     return _utime(path, times);
@@ -644,9 +619,9 @@ wrapper(int, utime, const char *path, const struct utimbuf *times) {
  * Note that the function prototype for utimensat(2) is defined in <utime.h>.
  */
 
-wrapper(int, utimensat, int dirfd, const char *pathname, const struct timespec times[2], int flags) {
+sip_wrapper(int, utimensat, int dirfd, const char *pathname, const struct timespec times[2], int flags) {
 
-	logmsg("Intercepted utimensat call with dirfd: %d, pathname: %s, flags: %d\n", dirfd, pathname, flags);
+	sip_info("Intercepted utimensat call with dirfd: %d, pathname: %s, flags: %d\n", dirfd, pathname, flags);
 
     _utimensat = dlsym(RTLD_NEXT, "utimensat");
     return _utimensat(dirfd, pathname, times, flags);
@@ -659,11 +634,11 @@ wrapper(int, utimensat, int dirfd, const char *pathname, const struct timespec t
  * Note that the function prototype for utimes(2) is defined in <sys/time.h>.
  */
 
-wrapper(int, utimes, const char *filename, const struct timeval times[2]) {
+sip_wrapper(int, utimes, const char *filename, const struct timeval times[2]) {
 
-	logmsg("Intercepted utimes call with filename: %s\n", filename);
+	sip_info("Intercepted utimes call with filename: %s\n", filename);
 
     _utimes = dlsym(RTLD_NEXT, "utimes");
-    return _utimes(filename, times[]);
+    return _utimes(filename, times);
 }
 

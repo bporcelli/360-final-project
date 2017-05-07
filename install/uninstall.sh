@@ -10,3 +10,13 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" )" && pwd)"
 ## Uninstall glibc wrapper libraries ##
 #######################################
 ../library/uninstall.sh
+
+##############################
+## Remove files/directories ##
+##############################
+
+# Root
+sudo rm -rf /sip
+
+# Daemon communication path
+sudo rm -rf ~/sip_daemon

@@ -16,7 +16,7 @@ cd $CWD
 ## Remove our glibc wrapper libraries from usr/lib/ ##
 ######################################################
 LIB_DIR="/usr/lib/"
-LIBS=("libwrap.so")
+LIBS=("libsipwrap.so")
 rm -f ${LIBS[@]/#/$LIB_DIR}
 
 #####################################################################
