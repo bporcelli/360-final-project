@@ -1,3 +1,4 @@
+EXED := /sip/executables
 EXE := runt
 COM := ../common
 

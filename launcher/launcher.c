@@ -5,6 +5,8 @@
  * its real, effective, and saved UID, so it should be setuid-root.
  */
 
+#define _GNU_SOURCE /* setresuid/setresgid */
+
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -13,10 +15,13 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
+
 #include "logger.h"
 #include "level.h"
+#include "common.h"
 
 // TODO: TEST WITH PIPES/SOCKETS OPEN
+// TODO: HOW TO AVOID CLOSING STDIN/STDOUT/STDERR?
 
 void close_benign_files() {
 	DIR* dp;
@@ -65,7 +70,7 @@ void close_benign_files() {
 
 
 int main(int argc, char* argv[]) {
-	/* Handle invalid args */
+
 	if (argc < 2) {
 		printf("Usage: runt PROGRAM [ARGS]\n");
 		return 1;
@@ -76,23 +81,18 @@ int main(int argc, char* argv[]) {
 	/* Close all open benign files/pipes */
 	close_benign_files();
 
-	/* Set effective, saved, real user ID to untrusted user ID */
-	if (setresuid(SIP_UNTRUSTED_USERID, SIP_UNTRUSTED_USERID, SIP_UNTRUSTED_USERID) < 0) {
-		sip_error("Failed to set user ID.\n");
-		perror("setresuid failed");
-		return 1;
-	}
-
-	/* Set real, effective, saved group ID to untrused group ID */
+	/* Set real, effective, and saved group ID & user ID (order important) */
 	if (setresgid(SIP_UNTRUSTED_USERID, SIP_UNTRUSTED_USERID, SIP_UNTRUSTED_USERID) < 0) {
-		sip_error("Failed to set group ID.\n");
-		perror("setresgid failed");
+		perror("call to setresgid failed");
+		return 1;
+	}
+	if (setresuid(SIP_UNTRUSTED_USERID, SIP_UNTRUSTED_USERID, SIP_UNTRUSTED_USERID) < 0) {
+		perror("call to setresuid failed");
 		return 1;
 	}
 
-	execvp(argv[1], argv[1]);
-
-	/* If we reach this point, an error occurred */
+	/* Execute program */
+	execvp(argv[1], &argv[1]);
 	perror("execvp failed");
 	return 1;
 }

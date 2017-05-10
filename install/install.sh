@@ -60,7 +60,11 @@ chmod a+rx ~/sip_daemon
 ../library/install.sh
 
 
-# TODO: build uudo executable with make and add to path (see 98-99, 106 in lwip_installation/install.sh)
+###############################################
+## Install runt (untrusted program launcher) ##
+###############################################
+../launcher/install.sh
+
 # TODO: determine if/where PiP changes the permissions on world-executables/world-writables
 
 ###################################################################
