@@ -14,7 +14,7 @@ cd $CWD
 #############################
 ## Build executable 'runt' ##
 #############################
-make clean runt
+make clean all
 
 ######################
 ## Make setuid-root ##

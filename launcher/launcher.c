@@ -19,12 +19,12 @@
 #include "logger.h"
 #include "level.h"
 #include "common.h"
+#include "util.h"
 
-// TODO: TEST WITH PIPES/SOCKETS OPEN
-// TODO: HOW TO AVOID CLOSING STDIN/STDOUT/STDERR?
 
 void close_benign_files() {
 	DIR* dp;
+	struct dirent* entry;
 
 	/* /proc/self/fd contains "one entry for each file which the process has
 	 * open, named by its file descriptor and which is a symbolic link to the
@@ -34,35 +34,56 @@ void close_benign_files() {
 		exit(1);
 	}
 
-	struct dirent* entry;
-
 	while ((entry = readdir(dp)) != NULL) {
 
 		if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, "..")) {
 			continue;
 		}
 
-		/* Entry name is a file descriptor. Convert to int. */
+		/* Entry name is a file descriptor. */
 		int fd = atoi(entry->d_name);
+
+		/* Resolve descriptor to path. */
+		char* path = sip_fd_to_path(fd);
+
+		if (path == NULL) {
+			printf("Path resolution for descriptor %d failed. Aborting.\n", fd);
+			exit(1);
+		}
 		
-		/* Use fnctl to get the file access mode. */
-		int mode = fcntl(fd, F_GETFL) & O_ACCMODE;
+		/* Files in /dev/pts are pseudo-terminals -- software-based terminals
+		 * used by applications like shells to receive input and display out-
+		 * put. We don't want to block untrusted applications from receiving
+		 * input or printing output, so we leave these files open. */
+		if (strstr(path, "/dev/pts") == path) {
+			free(path);
+			continue;
+		}
 
 		/* If file is benign and open for writing, downgrade it by setting the
 		 * group ownership to the untrusted group. If that fails, attempt to 
 		 * close it. */
-		if ((mode & O_RDWR || mode & O_WRONLY) && SIP_LV_HIGH == sip_fd_to_level(fd)) {
-			sip_info("Encountered high integrity file %d open for writing (PID %d)\n", fd, getpid());
+		int mode = fcntl(fd, F_GETFL) & O_ACCMODE;
 
-			if (sip_downgrade_fd(fd) == 0) {
-				sip_info("Downgraded file %d\n", fd);
-			} else if (close(fd) == 0) {
-				sip_info("Closed file %d\n", fd);
-			} else {
-				printf("High integrity file open for writing. Aborting.\n");
-				exit(1);
+		if (mode & O_RDWR || mode & O_WRONLY) {
+
+			/* Note: can't use S_ISFIFO to detect pipes reliably -- only FIFOs
+			 * (named pipes) will be detected. Therefore, we have add a special
+			 * check based on the resolved path name here. Pipes are always
+			 * considered high integrity. */
+			if (SIP_LV_HIGH == sip_fd_to_level(fd) || strstr(path, "pipe:[") != NULL) {
+				if (sip_downgrade_fd(fd) == 0) {
+					sip_info("Downgraded file %s to level SIP_LV_LOW.\n", path);
+				} else if (close(fd) == -1) {
+					sip_error("Failed to downgrade or close high integrity file %s\n", path);
+					printf("High integrity file %s (%d) open for writing. Aborting.\n", path, fd);
+					free(path);
+					exit(1);
+				}
 			}
 		}
+
+		free(path);
 	}
 
 	closedir(dp);
