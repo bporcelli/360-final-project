@@ -1,6 +1,10 @@
+#define _GNU_SOURCE /* required to expose syscall(2) */
+
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <sys/syscall.h>
+
 #include "common.h"
 #include "level.h"
 #include "logger.h"
@@ -95,4 +99,16 @@ int sip_downgrade_fd(int fd) {
 	}
 
 	return 0;
+}
+
+/**
+ * Get the integrity level of the calling process by checking the real user ID.
+ *
+ * @return SIP_LV_HIGH or SIP_LV_LOW
+ */
+int sip_level() {
+	long uid = syscall(SYS_getuid32); /* use syscall(2) to avoid interception */
+	if (uid == SIP_UNTRUSTED_USERID)
+		return SIP_LV_LOW;
+	return SIP_LV_HIGH;
 }
