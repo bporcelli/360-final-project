@@ -10,6 +10,8 @@ $(EXE): $(SRC) $(COM_SRC)
 
 test_driver: $(TSTD)/driver.c
 	gcc -I $(COM)/include $(TSTD)/driver.c -o $(TSTD)/driver
+	
+	# Must be setuid-root to set initial file permissions
 	sudo chown root:root $(TSTD)/driver
 	sudo chmod +s $(TSTD)/driver
 

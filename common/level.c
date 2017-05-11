@@ -16,12 +16,10 @@
  * @return SIP_LV_HIGH or SIP_LV_LOW
  */
 static int sip_stat_buf_to_level(struct stat* sb) {
-	/* Files that are world-writable are low integrity */
-	if (sb->st_mode & S_IWOTH) {
+	if (sb->st_mode & S_IWOTH) {	/* world-writable */
 		return SIP_LV_LOW;
 	}
 
-	/* Files that are owned or group-owned by untrusted user are low integrity */
 	if (sb->st_uid == SIP_UNTRUSTED_USERID || sb->st_gid == SIP_UNTRUSTED_USERID) {
 		return SIP_LV_LOW;
 	} else {
@@ -37,8 +35,10 @@ static int sip_stat_buf_to_level(struct stat* sb) {
  */
 int sip_fd_to_level(int fd) {
 	struct stat sbuf;
+	
 	if ((fstat(fd, &sbuf)) == -1)
 		return -1;
+	
 	return sip_stat_buf_to_level(&sbuf);
 }
 
@@ -50,8 +50,10 @@ int sip_fd_to_level(int fd) {
  */
 int sip_path_to_level(char* path) {
 	struct stat sbuf;
+	
 	if ((stat(path, &sbuf)) == -1)
 		return -1;
+	
 	return sip_stat_buf_to_level(&sbuf);
 }
 
@@ -71,14 +73,13 @@ int sip_downgrade_fd(int fd) {
 
 	if (sbuf.st_uid == SIP_UNTRUSTED_USERID || sbuf.st_gid == SIP_UNTRUSTED_USERID) {
 		sip_warning("Tried to downgrade a low integrity file.\n");
-		return 0; 	/* Already downgraded */
+		return 0;
 	} else if (sbuf.st_uid != SIP_REAL_USERID && sbuf.st_gid != SIP_REAL_USERID) {
 		sip_error("Tried to downgrade non-user-owned file.\n");
-		return -1; 	/* Not user-owned */
+		return -1;
 	}
 
-	/* Can't downgrade if group permissions are being used. Note: must shift
-	 * group bits left by 3 to align with user bits. */
+	/* Can't downgrade if group permissions are being used. */
 	if (sbuf.st_uid != sbuf.st_gid) {
 		if ((sbuf.st_mode & S_IRWXU) != (sbuf.st_mode & S_IRWXG) << 3) {
 			sip_error("Tried to downgrade file with group permissions used.\n");
@@ -92,7 +93,7 @@ int sip_downgrade_fd(int fd) {
 		return -1;
 	}
 
-	/* Set permissions for group. Keep original permissions for owner/others. */
+	/* Give RW permissions to group. Keep original permissions for owner/others. */
 	if (fchmod(fd, (sbuf.st_mode & ~S_IRWXG) | S_IRGRP | S_IWGRP) < 0) {
 		sip_error("Can't downgrade file: chmod failed.\n");
 		return -1;
@@ -108,7 +109,9 @@ int sip_downgrade_fd(int fd) {
  */
 int sip_level() {
 	long uid = syscall(SYS_getuid32); /* use syscall(2) to avoid interception */
+	
 	if (uid == SIP_UNTRUSTED_USERID)
 		return SIP_LV_LOW;
+	
 	return SIP_LV_HIGH;
 }
