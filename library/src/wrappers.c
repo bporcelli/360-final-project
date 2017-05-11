@@ -1,8 +1,13 @@
-#define _GNU_SOURCE /* Must include to use RTLD_NEXT pseudo-handle with dlsym(3) */
+#define _GNU_SOURCE // required to expose certain symbols -- don't remove
 
+#include <utime.h>      // struct utimbuf
+#include <sys/statfs.h> // struct statfs
+#include <sys/stat.h>   // struct stat
+#include <fcntl.h>      // S_* constants, AT_* constants
 #include <stdarg.h>
 #include <sys/stat.h>
 #include "wrappers.h"
+#include "dlhelper.h"
 #include "logger.h"
 
 /**
@@ -16,7 +21,7 @@ sip_wrapper(int, access, const char *pathname, int mode) {
 
 	sip_info("Intercepted access call with path: %s, mode: %d\n", pathname, mode);
 
-	_access = dlsym(RTLD_NEXT, "access");
+	_access = sip_find_sym("access");
 	return _access(pathname, mode);
 }
 
@@ -31,7 +36,7 @@ sip_wrapper(int, chmod, const char *pathname, mode_t mode) {
 
 	sip_info("Intercepted chmod call with path: %s, mode: %d\n", pathname, mode);
 
-	_chmod = dlsym(RTLD_NEXT, "chmod");
+	_chmod = sip_find_sym("chmod");
 	return _chmod(pathname, mode);
 }
 
@@ -46,7 +51,7 @@ sip_wrapper(int, execve, const char *filename, char *const argv[], char *const e
 
 	sip_info("Intercepted execve call with file: %s\n", filename);
 
-	_execve = dlsym(RTLD_NEXT, "execve");
+	_execve = sip_find_sym("execve");
 	return _execve(filename, argv, envp);
 }
 
@@ -61,7 +66,7 @@ sip_wrapper(int, faccessat, int dirfd, const char *pathname, int mode, int flags
 
 	sip_info("Intercepted faccessat call with dirfd: %d, path: %s, mode: %d, flags: %d\n", dirfd, pathname, mode, flags);
 
-	_faccessat = dlsym(RTLD_NEXT, "faccessat");
+	_faccessat = sip_find_sym("faccessat");
 	return _faccessat(dirfd, pathname, mode, flags);
 }
 
@@ -76,7 +81,7 @@ sip_wrapper(int, fchmod, int fd, mode_t mode) {
 
 	sip_info("Intercepted fchmod call with fd: %d, mode: %d\n", fd, mode);
 
-	_fchmod = dlsym(RTLD_NEXT, "fchmod");
+	_fchmod = sip_find_sym("fchmod");
 	return _fchmod(fd, mode);
 }
 
@@ -90,7 +95,7 @@ sip_wrapper(int, fchmodat, int dirfd, const char *pathname, mode_t mode, int fla
 
 	sip_info("Intercepted fchmodat call with dirfd: %d, path: %s, mode: %d, flags: %d\n", dirfd, pathname, mode, flags);
 
-	_fchmodat = dlsym(RTLD_NEXT, "fchmodat");
+	_fchmodat = sip_find_sym("fchmodat");
 	return _fchmodat(dirfd, pathname, mode, flags);
 }
 
@@ -105,7 +110,7 @@ sip_wrapper(int, fchownat, int dirfd, const char *pathname, uid_t owner, gid_t g
 
 	sip_info("Intercepted fchownat call with dirfd: %d, path: %s, uid: %lu, gid: %lu, flags: %d\n", dirfd, pathname, owner, group, flags);
 
-	_fchownat = dlsym(RTLD_NEXT, "fchownat");
+	_fchownat = sip_find_sym("fchownat");
 	return _fchownat(dirfd, pathname, owner, group, flags);
 }
 
@@ -120,7 +125,7 @@ sip_wrapper(int, fstat, int fd, struct stat *statbuf) {
 
 	sip_info("Intercepted fstat call with fd: %d\n", fd);
 
-	_fstat = dlsym(RTLD_NEXT, "fstat");
+	_fstat = sip_find_sym("fstat");
 	return _fstat(fd, statbuf);
 }
 
@@ -135,7 +140,7 @@ sip_wrapper(int, fstatat, int dirfd, const char *pathname, struct stat *statbuf,
 
 	sip_info("Intercepted fstatat call with dirfd: %d, path: %s, flags: %d\n", dirfd, pathname, flags);
 
-	_fstatat = dlsym(RTLD_NEXT, "fstatat");
+	_fstatat = sip_find_sym("fstatat");
 	return _fstatat(dirfd, pathname, statbuf, flags);
 }
 
@@ -150,7 +155,7 @@ sip_wrapper(int, fstatfs, int fd, struct statfs *buf) {
 
 	sip_info("Intercepted fstatfs call with fd: %d\n", fd);
 
-	_fstatfs = dlsym(RTLD_NEXT, "fstatfs");
+	_fstatfs = sip_find_sym("fstatfs");
 	return _fstatfs(fd, buf);
 }
 
@@ -165,7 +170,7 @@ sip_wrapper(int, futimesat, int dirfd, const char *pathname, const struct timeva
 
 	sip_info("Intercepted futimesat call with dirfd: %d, pathname: %s\n", dirfd, pathname);
 
-    _futimesat = dlsym(RTLD_NEXT, "futimesat");
+    _futimesat = sip_find_sym("futimesat");
     return _futimesat(dirfd, pathname, times);
 }
 
@@ -180,7 +185,7 @@ sip_wrapper(uid_t, getgid, void) {
 
 	sip_info("Intercepted getgid call:\n");
 
-	_getgid = dlsym(RTLD_NEXT, "getgid");
+	_getgid = sip_find_sym("getgid");
 	return _getgid();
 }
 
@@ -195,7 +200,7 @@ sip_wrapper(int, getgroups, int size, gid_t list[]) {
 
 	sip_info("Intercepted getgroups call with size: %d\n", size);
 
-	_getgroups = dlsym(RTLD_NEXT, "getgroups");
+	_getgroups = sip_find_sym("getgroups");
 	return _getgroups(size, list);
 }
 
@@ -211,7 +216,7 @@ sip_wrapper(uid_t, getuid, void) {
 
 	sip_info("Intercepted getuid call:\n");
 
-	_getuid = dlsym(RTLD_NEXT, "getuid");
+	_getuid = sip_find_sym("getuid");
 	return _getuid();
 }
 
@@ -226,7 +231,7 @@ sip_wrapper(int, getresuid, uid_t *ruid, uid_t *euid, uid_t *suid) {
 
 	sip_info("Intercepted getresuid call with ruid: %lu, euid: %lu, suid: %lu\n", ruid, euid, suid);
 
-	_getresuid = dlsym(RTLD_NEXT, "getresuid");
+	_getresuid = sip_find_sym("getresuid");
 	return _getresuid(ruid, euid, suid);
 }
 
@@ -241,7 +246,7 @@ sip_wrapper(int, getreguid, gid_t *rgid, gid_t *egid, gid_t *sgid) {
 
 	sip_info("Intercepted getreguid call with rgid: %lu, egid: %lu, sgid: %lu\n", rgid, egid, sgid);
 
-	_getreguid = dlsym(RTLD_NEXT, "getresgid");
+	_getreguid = sip_find_sym("getresgid");
 	return _getreguid(rgid, egid, sgid);
 }
 
@@ -258,7 +263,7 @@ sip_wrapper(int, lchown, const char *pathname, uid_t owner, gid_t group) {
 
 	sip_info("Intercepted lchown call with path: %s, uid: %lu, gid: %lu\n", pathname, owner, group);
 
-	_lchown = dlsym(RTLD_NEXT, "lchown");
+	_lchown = sip_find_sym("lchown");
 	return _lchown(pathname, owner, group);
 }
 
@@ -275,7 +280,7 @@ sip_wrapper(int, link, const char *oldpath, const char *newpath) {
 
 	sip_info("Intercepted link call with oldpath: %s, newpath: %s\n", oldpath, newpath);
 
-	_link = dlsym(RTLD_NEXT, "link");
+	_link = sip_find_sym("link");
 	return _link(oldpath, newpath);
 }
 
@@ -289,7 +294,7 @@ sip_wrapper(int, linkat, int olddirfd, const char *oldpath, int newdirfd, const 
 
 	sip_info("Intercepted linkat call with olddir: %d, oldpath: %s, newdir: %d, newpath: %s\n", olddirfd, oldpath, newdirfd, newpath);
 
-	_linkat = dlsym(RTLD_NEXT, "linkat");
+	_linkat = sip_find_sym("linkat");
 	return _linkat(olddirfd, oldpath, newdirfd, newpath, flags);
 }
 
@@ -303,7 +308,7 @@ sip_wrapper(int, lstat, const char *pathname, struct stat *statbuf) {
 
 	sip_info("Intercepted lstat call with path: %s\n", pathname);
 
-	_lstat = dlsym(RTLD_NEXT, "lstat");
+	_lstat = sip_find_sym("lstat");
 	return _lstat(pathname, statbuf);
 }
 
@@ -320,7 +325,7 @@ sip_wrapper(int, mkdir, const char *pathname, mode_t mode) {
 
 	sip_info("Intercepted mkdir call with path: %s, mode: %d\n", pathname, mode);
 
-	_mkdir = dlsym(RTLD_NEXT, "mkdir");
+	_mkdir = sip_find_sym("mkdir");
 	return _mkdir(pathname, mode);
 }
 
@@ -336,7 +341,7 @@ sip_wrapper(int, mkdirat, int dirfd, const char *pathname, mode_t mode) {
 
 	sip_info("Intercepted mkdirat call with dirfd: %d, path: %s, mode: %d\n", dirfd, pathname, mode);
 
-	_mkdirat = dlsym(RTLD_NEXT, "mkdirat");
+	_mkdirat = sip_find_sym("mkdirat");
 	return _mkdir(pathname, mode);
 }
 
@@ -351,7 +356,7 @@ sip_wrapper(int, mknod, const char *pathname, mode_t mode, dev_t dev) {
 
 	sip_info("Intercepted mknod call with path: %s, mode: %lu, dev: %lu\n", pathname, mode, dev);
 
-	_mknod = dlsym(RTLD_NEXT, "mknod");
+	_mknod = sip_find_sym("mknod");
 	return _mknod(pathname, mode, dev);
 }
 
@@ -366,7 +371,7 @@ sip_wrapper(int, mknodat, int dirfd, const char *pathname, mode_t mode, dev_t de
 
 	sip_info("Intercepted mknodat call with dirfd: %d, path: %s, mode: %lu, dev: %lu\n", dirfd, pathname, mode, dev);
 
-	_mknodat = dlsym(RTLD_NEXT, "mknodat");
+	_mknodat = sip_find_sym("mknodat");
 	return _mknodat(dirfd, pathname, mode, dev);
 }
 
@@ -396,7 +401,7 @@ sip_wrapper(int, open, const char *__file, int __oflag, ...) {
 	/* Destory va list */
 	va_end(args);
 
-	_open = dlsym(RTLD_NEXT, "open");
+	_open = sip_find_sym("open");
 	return _open(__file, __oflag, mode);
 }
 
@@ -411,7 +416,7 @@ sip_wrapper(ssize_t, readlink, const char *pathname, char *buf, size_t bufsiz) {
 
     sip_info("Intercepted readlink call with pathname: %s, bufsiz: %lu\n", pathname, bufsiz);
 
-    _readlink = dlsym(RTLD_NEXT, "readlink");
+    _readlink = sip_find_sym("readlink");
     return _readlink(pathname, buf, bufsiz);
 }
 
@@ -426,7 +431,7 @@ sip_wrapper(ssize_t, readlinkat, int dirfd, const char *pathname, char *buf, siz
 
     sip_info("Intercepted readlinkat call with dirfd: %d, pathname: %s, bufsiz: %lu\n", dirfd, pathname, bufsiz);
 
-    _readlinkat = dlsym(RTLD_NEXT, "readlinkat");
+    _readlinkat = sip_find_sym("readlinkat");
     return _readlinkat(dirfd, pathname, buf, bufsiz);
 }
 
@@ -441,7 +446,7 @@ sip_wrapper(int, rename, const char *oldpath, const char *newpath) {
 
     sip_info("Intercepted rename call with oldpath: %s, newpath: %s\n", oldpath, newpath);
 
-    _rename = dlsym(RTLD_NEXT, "rename");
+    _rename = sip_find_sym("rename");
     return _rename(oldpath, newpath);
 }
 
@@ -456,7 +461,7 @@ sip_wrapper(int, renameat, int olddirfd, const char *oldpath, int newdirfd, cons
 
     sip_info("Intercepted renameat call with olddirfd: %s, oldpath: %s, newdirfd: %d\n", olddirfd, oldpath, newpath);
 
-    _renameat = dlsym(RTLD_NEXT, "renameat");
+    _renameat = sip_find_sym("renameat");
     return _renameat(olddirfd, oldpath, newdirfd, newpath);
 }
 
@@ -472,7 +477,7 @@ sip_wrapper(int, renameat2, int olddirfd, const char *oldpath, int newdirfd, con
     sip_info("Intercepted renameatat2 call with olddirfd: %s, oldpath: %s, newdirfd: %d, newpath: %s, flags: %d\n", 
     	olddirfd, oldpath, newdirfd, newpath, flags);
 
-    _renameat2 = dlsym(RTLD_NEXT, "renameat2");
+    _renameat2 = sip_find_sym("renameat2");
     return _renameat2(olddirfd, oldpath, newdirfd, newpath, flags);
 }
 
@@ -488,7 +493,7 @@ sip_wrapper(int, rmdir, const char *pathname) {
 
 	sip_info("Intercepted rmdir call with path: %s\n", pathname);
 
-	_rmdir = dlsym(RTLD_NEXT, "rmdir");
+	_rmdir = sip_find_sym("rmdir");
 	return _rmdir(pathname);
 }
 
@@ -502,7 +507,7 @@ sip_wrapper(int, stat, const char *pathname, struct stat *statbuf) {
 
 	sip_info("Intercepted stat call with path: %s\n", pathname);
 
-	_stat = dlsym(RTLD_NEXT, "stat");
+	_stat = sip_find_sym("stat");
 	return _stat(pathname, statbuf);
 }
 
@@ -516,7 +521,7 @@ sip_wrapper(int, statfs, const char *path, struct statfs *buf) {
 
 	sip_info("Intercepted statfs call with path: %s\n", path);
 
-	_statfs = dlsym(RTLD_NEXT, "statfs");
+	_statfs = sip_find_sym("statfs");
 	return _statfs(path, buf);
 }
 
@@ -531,7 +536,7 @@ sip_wrapper(int, symlink, const char *target, const char *linkpath) {
 
 	sip_info("Intercepted symlink call with target: %s, linkpath: %s\n", target, linkpath);
 
-    _symlink = dlsym(RTLD_NEXT, "symlink");
+    _symlink = sip_find_sym("symlink");
     return _symlink(target, linkpath);
 }
 
@@ -546,7 +551,7 @@ sip_wrapper(int, symlinkat, const char *target, int newdirfd, const char *linkpa
 
 	sip_info("Intercepted symlinkat call with target: %s, newdirfd: %d, linkpath: %s\n", target, newdirfd, linkpath);
 
-    _symlinkat = dlsym(RTLD_NEXT, "symlinkat");
+    _symlinkat = sip_find_sym("symlinkat");
     return _symlinkat(target, newdirfd, linkpath);
 }
 
@@ -561,7 +566,7 @@ sip_wrapper(int, unlink, const char *pathname) {
 
 	sip_info("Intercepted unlink call with path: %s\n", pathname);
 
-    _unlink = dlsym(RTLD_NEXT, "unlink");
+    _unlink = sip_find_sym("unlink");
     return _unlink(pathname);
 }
 
@@ -576,7 +581,7 @@ sip_wrapper(int, unlinkat, int dirfd, const char *pathname, int flags) {
 
 	sip_info("Intercepted unlinkat call with dirfd: %d, path: %s, flags: %d\n", dirfd, pathname, flags);
 
-    _unlinkat = dlsym(RTLD_NEXT, "unlinkat");
+    _unlinkat = sip_find_sym("unlinkat");
     return _unlinkat(dirfd, pathname, flags);
 }
 
@@ -593,7 +598,7 @@ sip_wrapper(ssize_t, write, int fd, const void *buf, size_t count) {
 	// e.g. with a program like cat
 	// sip_info("Intercepted write call with fd: %d, count: %lu\n", fd, count);
 
-    _write = dlsym(RTLD_NEXT, "write");
+    _write = sip_find_sym("write");
     return _write(fd, buf, count);
 }
 
@@ -608,7 +613,7 @@ sip_wrapper(int, utime, const char *path, const struct utimbuf *times) {
 
 	sip_info("Intercepted utime call with path: %s\n", path);
 
-    _utime = dlsym(RTLD_NEXT, "utime");
+    _utime = sip_find_sym("utime");
     return _utime(path, times);
 }
 
@@ -623,7 +628,7 @@ sip_wrapper(int, utimensat, int dirfd, const char *pathname, const struct timesp
 
 	sip_info("Intercepted utimensat call with dirfd: %d, pathname: %s, flags: %d\n", dirfd, pathname, flags);
 
-    _utimensat = dlsym(RTLD_NEXT, "utimensat");
+    _utimensat = sip_find_sym("utimensat");
     return _utimensat(dirfd, pathname, times, flags);
 }
 
@@ -638,7 +643,7 @@ sip_wrapper(int, utimes, const char *filename, const struct timeval times[2]) {
 
 	sip_info("Intercepted utimes call with filename: %s\n", filename);
 
-    _utimes = dlsym(RTLD_NEXT, "utimes");
+    _utimes = sip_find_sym("utimes");
     return _utimes(filename, times);
 }
 
