@@ -54,16 +54,16 @@ chmod a+rx ~/sip_daemon
 ./configure.sh
 
 
-#####################################
-## Install glibc wrapper libraries ##
-#####################################
-../library/install.sh
-
-
 ###############################################
 ## Install runt (untrusted program launcher) ##
 ###############################################
 ../launcher/install.sh
+
+
+#####################################
+## Install glibc wrapper libraries ##
+#####################################
+../library/install.sh
 
 # TODO: determine if/where PiP changes the permissions on world-executables/world-writables
 

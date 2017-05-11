@@ -11,6 +11,13 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" )" && pwd)"
 #######################################
 ../library/uninstall.sh
 
+
+########################
+## Uninstall launcher ##
+########################
+../launcher/uninstall.sh
+
+
 ##############################
 ## Remove files/directories ##
 ##############################
