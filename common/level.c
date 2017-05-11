@@ -6,6 +6,26 @@
 #include "logger.h"
 
 /**
+ * Given a stat struct, determine the integrity level of a file.
+ *
+ * @param struct stat* sb
+ * @return SIP_LV_HIGH or SIP_LV_LOW
+ */
+static int sip_stat_buf_to_level(struct stat* sb) {
+	/* Files that are world-writable are low integrity */
+	if (sb->st_mode & S_IWOTH) {
+		return SIP_LV_LOW;
+	}
+
+	/* Files that are owned or group-owned by untrusted user are low integrity */
+	if (sb->st_uid == SIP_UNTRUSTED_USERID || sb->st_gid == SIP_UNTRUSTED_USERID) {
+		return SIP_LV_LOW;
+	} else {
+		return SIP_LV_HIGH;
+	}
+}
+
+/**
  * Determine the integrity level of a file given a file descriptor.
  *
  * @param int fd File descriptor.
@@ -13,22 +33,22 @@
  */
 int sip_fd_to_level(int fd) {
 	struct stat sbuf;
-
-	if ((fstat(fd, &sbuf)) == -1) {
+	if ((fstat(fd, &sbuf)) == -1)
 		return -1;
-	}
+	return sip_stat_buf_to_level(&sbuf);
+}
 
-	/* Files that are world-writable are low integrity */
-	if (sbuf.st_mode & S_IWOTH) {
-		return SIP_LV_LOW;
-	}
-
-	/* Files that are owned or group-owned by untrusted user are low integrity */
-	if (sbuf.st_uid == SIP_UNTRUSTED_USERID || sbuf.st_gid == SIP_UNTRUSTED_USERID) {
-		return SIP_LV_LOW;
-	} else {
-		return SIP_LV_HIGH;
-	}
+/**
+ * Determine the integrity level of a file given a file path.
+ *
+ * @param char* path File path.
+ * @return -1 on error, otherwise SIP_LV_HIGH or SIP_LV_LOW
+ */
+int sip_path_to_level(char* path) {
+	struct stat sbuf;
+	if ((stat(path, &sbuf)) == -1)
+		return -1;
+	return sip_stat_buf_to_level(&sbuf);
 }
 
 /**

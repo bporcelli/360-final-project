@@ -6,5 +6,6 @@
 
 int sip_fd_to_level(int fd);
 int sip_downgrade_fd(int fd);
+int sip_path_to_level(char* path);
 
 #endif
