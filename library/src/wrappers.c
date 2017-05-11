@@ -1,28 +1,58 @@
 #define _GNU_SOURCE // required to expose certain symbols -- don't remove
 
-#include <utime.h>      // struct utimbuf
-#include <sys/statfs.h> // struct statfs
-#include <sys/stat.h>   // struct stat
-#include <fcntl.h>      // S_* constants, AT_* constants
+#include <utime.h>
+#include <sys/statfs.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <stdarg.h>
 #include <sys/stat.h>
+#include <errno.h>
+
 #include "wrappers.h"
 #include "dlhelper.h"
 #include "logger.h"
+#include "level.h"
 
 /**
- * Basic wrapper for access(2). It logs the access request, then invokes
- * glibc access(2) with the given argument.
+ * Wrapper for faccessat(2). Enforces the following policy:
  *
- * Note that the function prototype for access(2) is defined in <fcntl.h> and <unistd.h>.
+ * PROCESS LEVEL | ACTION
+ * ---------------------------------------------------------------------------
+ * HIGH          | Deny read/write access for low integrity files.
+ * ---------------------------------------------------------------------------
+ * LOW           | If request fails with errno EACCES, forward to delegator.
+ * ---------------------------------------------------------------------------
  */
+sip_wrapper(int, faccessat, int dirfd, const char *pathname, int mode, int flags) {
 
+	sip_info("Intercepted faccessat call with dirfd: %d, path: %s, mode: %d, flags: %d\n", dirfd, pathname, mode, flags);
+
+	if (SIP_IS_HIGHI) {
+		int read_or_exec = (mode & R_OK) || (mode & X_OK);
+
+		if (SIP_LV_LOW == sip_path_to_level(pathname) && read_or_exec) {
+			sip_info("Denied read/exec permissions on low integrity file %s\n", pathname);
+			errno = EACCES;
+			return -1;
+		}
+	}
+
+	_faccessat = sip_find_sym("faccessat");
+
+	int rv = _faccessat(dirfd, pathname, mode, flags);
+
+	if (SIP_IS_LOWI && rv == -1 && errno == EACCES) {
+		// TODO: SEND REQUEST TO DELEGATOR. UPDATE ERRNO/RV ON RESPONSE.
+		sip_info("Would delegate faccessat on %s\n", pathname);
+	}
+	return rv;
+}
+
+/**
+ * Wrapper for access(2). Redirects to faccessat(2).
+ */
 sip_wrapper(int, access, const char *pathname, int mode) {
-
-	sip_info("Intercepted access call with path: %s, mode: %d\n", pathname, mode);
-
-	_access = sip_find_sym("access");
-	return _access(pathname, mode);
+	return faccessat(AT_FDCWD, pathname, mode, 0);
 }
 
 /**
@@ -53,21 +83,6 @@ sip_wrapper(int, execve, const char *filename, char *const argv[], char *const e
 
 	_execve = sip_find_sym("execve");
 	return _execve(filename, argv, envp);
-}
-
-/**
- * Basic wrapper for faccessat(2). It logs the faccessat request, then invokes
- * glibc faccessat(2) with the given argument.
- *
- * Note that the function prototype for faccessat(2) is defined in <fcntl.h> and <unistd.h>.
- */
-
-sip_wrapper(int, faccessat, int dirfd, const char *pathname, int mode, int flags) {
-
-	sip_info("Intercepted faccessat call with dirfd: %d, path: %s, mode: %d, flags: %d\n", dirfd, pathname, mode, flags);
-
-	_faccessat = sip_find_sym("faccessat");
-	return _faccessat(dirfd, pathname, mode, flags);
 }
 
 /**
@@ -115,35 +130,63 @@ sip_wrapper(int, fchownat, int dirfd, const char *pathname, uid_t owner, gid_t g
 }
 
 /**
+ * Basic wrapper for stat(2). It logs the stat request, then invokes 
+ * glibc stat(2) with the given argument.
+ *
+ * NOTE: __xstat is the name libc uses internally for stat.
+ */
+sip_wrapper(int, __xstat, int ver, const char *pathname, struct stat *statbuf) {
+
+	sip_info("Intercepted stat call with path: %s\n", pathname);
+
+	___xstat = sip_find_sym("__xstat");
+
+	sip_info("stat found at address: %p\n", ___xstat);
+
+	return ___xstat(ver, pathname, statbuf);
+}
+
+/**
  * Basic wrapper for fstat(2). It logs the fstat request, then invokes
  * glibc fstat(2) with the given argument.
  *
- * Note that the function prototype for fstat(2) is defined in <unistd.h> <sys/types.h> <sys/stat.h>.
+ * NOTE: __fxstat is the name libc uses internally for fstat.
  */
-
-sip_wrapper(int, fstat, int fd, struct stat *statbuf) {
+sip_wrapper(int, __fxstat, int ver, int fd, struct stat *statbuf) {
 
 	sip_info("Intercepted fstat call with fd: %d\n", fd);
 
-	_fstat = sip_find_sym("fstat");
-	return _fstat(fd, statbuf);
+	___fxstat = sip_find_sym("__fxstat");
+	return ___fxstat(ver, fd, statbuf);
 }
 
 /**
  * Basic wrapper for fstatat(2). It logs the fstatat request, then invokes
  * glibc fstatat(2) with the given argument.
  *
- * Note that the function prototype for fstatat(2) is defined in <fnctl.h> <sys/stat.h>.
+ * NOTE: __fxstatat is the name libc uses internally for fstatat.
  */
-
-sip_wrapper(int, fstatat, int dirfd, const char *pathname, struct stat *statbuf, int flags) {
+sip_wrapper(int, __fxstatat, int ver, int dirfd, const char *pathname, struct stat *statbuf, int flags) {
 
 	sip_info("Intercepted fstatat call with dirfd: %d, path: %s, flags: %d\n", dirfd, pathname, flags);
 
-	_fstatat = sip_find_sym("fstatat");
-	return _fstatat(dirfd, pathname, statbuf, flags);
+	___fxstatat = sip_find_sym("__fxstatat");
+	return ___fxstatat(ver, dirfd, pathname, statbuf, flags);
 }
 
+/**
+ * Basic wrapper for lstat(2). It logs the lstat request, then invokes 
+ * glibc lstat(2) with the given argument.
+ *
+ * NOTE: __lxstat is the name libc uses internally for lstat.
+ */
+sip_wrapper(int, __lxstat, int ver, const char *pathname, struct stat *statbuf) {
+
+	sip_info("Intercepted lstat call with path: %s\n", pathname);
+
+	___lxstat = sip_find_sym("__lxstat");
+	return ___lxstat(ver, pathname, statbuf);
+}
 
 /**
  * Basic wrapper for fstatfs(2). It logs the fstatfs request, then invokes 
@@ -157,6 +200,20 @@ sip_wrapper(int, fstatfs, int fd, struct statfs *buf) {
 
 	_fstatfs = sip_find_sym("fstatfs");
 	return _fstatfs(fd, buf);
+}
+
+/**
+ * Basic wrapper for statfs(2). It logs the statfs request, then invokes 
+ * glibc statfs(2) with the given argument.
+ *
+ * Note that the function prototype for statfs(2) is defined in <sys/vfs.h>
+ */
+sip_wrapper(int, statfs, const char *path, struct statfs *buf) {
+
+	sip_info("Intercepted statfs call with path: %s\n", path);
+
+	_statfs = sip_find_sym("statfs");
+	return _statfs(path, buf);
 }
 
 /**
@@ -298,19 +355,7 @@ sip_wrapper(int, linkat, int olddirfd, const char *oldpath, int newdirfd, const 
 	return _linkat(olddirfd, oldpath, newdirfd, newpath, flags);
 }
 
-/**
- * Basic wrapper for lstat(2). It logs the lstat request, then invokes 
- * glibc lstat(2) with the given argument.
- *
- * Note that the function prototype for lstat(2) is defined in <sys/types.h> <sys/stat.h> <unistd.h>
- */
-sip_wrapper(int, lstat, const char *pathname, struct stat *statbuf) {
 
-	sip_info("Intercepted lstat call with path: %s\n", pathname);
-
-	_lstat = sip_find_sym("lstat");
-	return _lstat(pathname, statbuf);
-}
 
 
 
@@ -349,33 +394,30 @@ sip_wrapper(int, mkdirat, int dirfd, const char *pathname, mode_t mode) {
  * Basic wrapper for mknod(2). It logs the mknod request, then invokes
  * glibc mknod(2) with the given arguments.
  *
- * Note that the function prototype for mknod(2) is defined in <sys/types.h> <sys/stat.h> <fcntl.h> <unistd.h>
+ * NOTE: __xmknod is the name libc uses internally for mknod.
  */
 
-sip_wrapper(int, mknod, const char *pathname, mode_t mode, dev_t dev) {
+sip_wrapper(int, __xmknod, int ver, const char *pathname, mode_t mode, dev_t *dev) {
 
 	sip_info("Intercepted mknod call with path: %s, mode: %lu, dev: %lu\n", pathname, mode, dev);
 
-	_mknod = sip_find_sym("mknod");
-	return _mknod(pathname, mode, dev);
+	___xmknod = sip_find_sym("__xmknod");
+	return ___xmknod(ver, pathname, mode, dev);
 }
 
 /**
  * Basic wrapper for mknodat(2). It logs the mknodat request, then invokes
  * glibc mknodat(2) with the given arguments.
  *
- * Note that the function prototype for mknodat(2) is defined in <sys/stat.h> <fcntl.h>
+ * NOTE: __xmknodat is the name libc uses internally for mknod.
  */
-
-sip_wrapper(int, mknodat, int dirfd, const char *pathname, mode_t mode, dev_t dev) {
+sip_wrapper(int, __xmknodat, int ver, int dirfd, const char *pathname, mode_t mode, dev_t *dev) {
 
 	sip_info("Intercepted mknodat call with dirfd: %d, path: %s, mode: %lu, dev: %lu\n", dirfd, pathname, mode, dev);
 
-	_mknodat = sip_find_sym("mknodat");
-	return _mknodat(dirfd, pathname, mode, dev);
+	___xmknodat = sip_find_sym("__xmknodat");
+	return ___xmknodat(ver, dirfd, pathname, mode, dev);
 }
-
-
 
 /**
  * Basic wrapper for open(2). It logs the open request, then invokes
@@ -495,34 +537,6 @@ sip_wrapper(int, rmdir, const char *pathname) {
 
 	_rmdir = sip_find_sym("rmdir");
 	return _rmdir(pathname);
-}
-
-/**
- * Basic wrapper for stat(2). It logs the stat request, then invokes 
- * glibc stat(2) with the given argument.
- *
- * Note that the function prototype for stat(2) is defined in <sys/types.h> <sys/stat.h> <unistd.h>
- */
-sip_wrapper(int, stat, const char *pathname, struct stat *statbuf) {
-
-	sip_info("Intercepted stat call with path: %s\n", pathname);
-
-	_stat = sip_find_sym("stat");
-	return _stat(pathname, statbuf);
-}
-
-/**
- * Basic wrapper for statfs(2). It logs the statfs request, then invokes 
- * glibc statfs(2) with the given argument.
- *
- * Note that the function prototype for statfs(2) is defined in <sys/vfs.h>
- */
-sip_wrapper(int, statfs, const char *path, struct statfs *buf) {
-
-	sip_info("Intercepted statfs call with path: %s\n", path);
-
-	_statfs = sip_find_sym("statfs");
-	return _statfs(path, buf);
 }
 
 /**

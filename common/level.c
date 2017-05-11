@@ -45,10 +45,10 @@ int sip_fd_to_level(int fd) {
 /**
  * Determine the integrity level of a file given a file path.
  *
- * @param char* path File path.
+ * @param const char* path File path.
  * @return -1 on error, otherwise SIP_LV_HIGH or SIP_LV_LOW
  */
-int sip_path_to_level(char* path) {
+int sip_path_to_level(const char* path) {
 	struct stat sbuf;
 	
 	if ((stat(path, &sbuf)) == -1)
