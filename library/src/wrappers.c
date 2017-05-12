@@ -699,7 +699,7 @@ sip_wrapper(int, symlink, const char *target, const char *linkpath) {
 
 	sip_info("Intercepted symlink call with target: %s, linkpath: %s\n", target, linkpath);
 
-    return symlinkat(target, linkpath);
+    return symlinkat(target, AT_FDCWD, linkpath);
 }
 
 /**
@@ -722,7 +722,7 @@ sip_wrapper(int, symlinkat, const char *target, int newdirfd, const char *linkpa
     if(res == -1 && errno == EACCES && SIP_IS_LOWI) {
 		// TODO: SEND REQUEST TO DELEGATOR. UPDATE ERRNO/RV ON RESPONSE.
 		// HOW TO DO THIS WITHOUT COPYING THE PIP SOLUTION ONE-FOR-ONE...?
-		sip_info("Would delegate linkat on %s\n", olddirfd);
+		sip_info("Would delegate linkat on %s\n", target);
 	}
 
     return res;
