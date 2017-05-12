@@ -38,3 +38,15 @@ const char *sip_revert_path(const char *pathname) {
 	return char* temp_rmvd = pathname + strlen(SIP_REDIRECTION_PATH);
 }
 
+const char *sip_convert_if(const char *pathname) {
+
+	char *test = sip_build_redirect_path(pathname);
+
+	if(access(test, F_OK) != -1) {
+		return test;
+	}
+	else {
+		return pathname;
+	}
+}
+
