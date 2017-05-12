@@ -11,6 +11,7 @@
 
 #include "wrappers.h"
 #include "dlhelper.h"
+#include "common.h"
 #include "logger.h"
 #include "level.h"
 #include "util.h"
@@ -155,6 +156,8 @@ sip_wrapper(int, fchown, int fd, uid_t owner, gid_t group) {
 	if (path == NULL)
 		return -1;
 
+	sip_info("in fchown. resolved fd %d to path %s\n", fd, path);
+
 	int res = fchownat(AT_FDCWD, path, owner, group, 0);
 
 	free(path);
@@ -173,6 +176,132 @@ sip_wrapper(int, lchown, const char *pathname, uid_t owner, gid_t group) {
  */
 sip_wrapper(int, chown, const char *file, uid_t owner, gid_t group) {
 	return fchownat(AT_FDCWD, file, owner, group, 0);
+}
+
+/**
+ * Wrapper for getgid(2). Enforces the following policy:
+ *
+ * PROCESS LEVEL | ACTION
+ * ---------------------------------------------------------------------------
+ * HIGH          | None.
+ * ---------------------------------------------------------------------------
+ * LOW           | If real GID is untrusted GID, return trusted GID.
+ * ---------------------------------------------------------------------------
+ */
+sip_wrapper(uid_t, getgid, void) {
+	_getgid = sip_find_sym("getgid");
+
+	gid_t group = _getgid();
+
+	if (group == SIP_UNTRUSTED_USERID) {
+		return SIP_TRUSTED_GROUP_GID;
+	}	
+	return group;
+}
+
+/**
+ * Wrapper for getreguid2). Enforces the following policy:
+ *
+ * PROCESS LEVEL | ACTION
+ * ---------------------------------------------------------------------------
+ * HIGH          | None.
+ * ---------------------------------------------------------------------------
+ * LOW           | If real, saved, or effective GID is untrusted, return trusted GID.
+ * ---------------------------------------------------------------------------
+ */
+sip_wrapper(int, getresgid, gid_t *rgid, gid_t *egid, gid_t *sgid) {
+	_getresgid = sip_find_sym("getresgid");
+
+	int rv = _getresgid(rgid, egid, sgid);
+
+	if (rv == 0) {
+		if (*rgid == SIP_UNTRUSTED_USERID) 
+			*rgid = SIP_TRUSTED_GROUP_GID;
+
+		if (*egid == SIP_UNTRUSTED_USERID)
+			*egid = SIP_TRUSTED_GROUP_GID;
+		
+		if (*sgid == SIP_UNTRUSTED_USERID)
+			*sgid = SIP_TRUSTED_GROUP_GID;
+	}
+	return rv;
+}
+
+/**
+ * Wrapper for getuid2). Enforces the following policy:
+ *
+ * PROCESS LEVEL | ACTION
+ * ---------------------------------------------------------------------------
+ * HIGH          | None.
+ * ---------------------------------------------------------------------------
+ * LOW           | If real UID is untrusted UID, return trusted UID.
+ * ---------------------------------------------------------------------------
+ */
+sip_wrapper(uid_t, getuid, void) {
+	_getuid = sip_find_sym("getuid");
+
+	uid_t user = _getuid();
+
+	if (user == SIP_UNTRUSTED_USERID) {
+		return SIP_REAL_USERID;
+	}
+	return user;
+}
+
+/**
+ * Wrapper for getuid2). Enforces the following policy:
+ *
+ * PROCESS LEVEL | ACTION
+ * ---------------------------------------------------------------------------
+ * HIGH          | None.
+ * ---------------------------------------------------------------------------
+ * LOW           | If real, effective, or saved UID is untrusted UID, return trusted UID.
+ * ---------------------------------------------------------------------------
+ */
+sip_wrapper(int, getresuid, uid_t *ruid, uid_t *euid, uid_t *suid) {
+	_getresuid = sip_find_sym("getresuid");
+
+	int rv = _getresuid(ruid, euid, suid);
+
+	if (rv == 0) {
+		if (*ruid == SIP_UNTRUSTED_USERID) 
+			*ruid = SIP_REAL_USERID;
+
+		if (*euid == SIP_UNTRUSTED_USERID)
+			*euid = SIP_REAL_USERID;
+		
+		if (*suid == SIP_UNTRUSTED_USERID)
+			*suid = SIP_REAL_USERID;
+	} 	
+	return rv;
+}
+
+/**
+ * Wrapper for getgroups(2). Enforces the following process:
+ *
+ * PROCESS LEVEL | ACTION
+ * ---------------------------------------------------------------------------
+ * HIGH          | None.
+ * ---------------------------------------------------------------------------
+ * LOW           | Substitute untrusted GID with trusted GID in result.
+ * ---------------------------------------------------------------------------
+ */
+sip_wrapper(int, getgroups, int size, gid_t list[]) {
+	_getgroups = sip_find_sym("getgroups");
+
+	int rv = _getgroups(size, list), i;
+
+	if (rv > 0 && size > 0) {
+		/* If any of the GIDs in list match the untrusted GID, substitute with
+		 * the trusted GID. */
+		for (i = 0; i < rv; i++) {
+			if (list[i] == SIP_UNTRUSTED_USERID) {
+				list[i] = SIP_TRUSTED_GROUP_GID;
+			}
+		}
+	}
+
+	return rv;
 }
 
 /**
@@ -201,9 +330,6 @@ sip_wrapper(int, __xstat, int ver, const char *pathname, struct stat *statbuf) {
 	sip_info("Intercepted stat call with path: %s\n", pathname);
 
 	___xstat = sip_find_sym("__xstat");
-
-	sip_info("stat found at address: %p\n", ___xstat);
-
 	return ___xstat(ver, pathname, statbuf);
 }
 
@@ -290,82 +416,6 @@ sip_wrapper(int, futimesat, int dirfd, const char *pathname, const struct timeva
 
     _futimesat = sip_find_sym("futimesat");
     return _futimesat(dirfd, pathname, times);
-}
-
-/**
- * Basic wrapper for getgid(2). It logs the getgid request, then invokes
- * glibc getgid(2) with the given argument.
- *
- * Note that the function prototype for getgid(2) is defined in <unistd.h> <sys/types.h>.
- */
-
-sip_wrapper(uid_t, getgid, void) {
-
-	sip_info("Intercepted getgid call:\n");
-
-	_getgid = sip_find_sym("getgid");
-	return _getgid();
-}
-
-/**
- * Basic wrapper for getgroups(2). It logs the getgroups request, then invokes
- * glibc getgroups(2) with the given argument.
- *
- * Note that the function prototype for getgroups(2) is defined in <unistd.h> <sys/types.h>.
- */
-
-sip_wrapper(int, getgroups, int size, gid_t list[]) {
-
-	sip_info("Intercepted getgroups call with size: %d\n", size);
-
-	_getgroups = sip_find_sym("getgroups");
-	return _getgroups(size, list);
-}
-
-
-/**
- * Basic wrapper for getuid2). It logs the getuid request, then invokes
- * glibc getuid(2) with the given argument.
- *
- * Note that the function prototype for getuid(2) is defined in <unistd.h> <sys/types.h>.
- */
-
-sip_wrapper(uid_t, getuid, void) {
-
-	sip_info("Intercepted getuid call:\n");
-
-	_getuid = sip_find_sym("getuid");
-	return _getuid();
-}
-
-/**
- * Basic wrapper for getresuid2). It logs the getresuid request, then invokes
- * glibc getresuid(2) with the given argument.
- *
- * Note that the function prototype for getresuid(2) is defined in <unistd.h>.
- */
-
-sip_wrapper(int, getresuid, uid_t *ruid, uid_t *euid, uid_t *suid) {
-
-	sip_info("Intercepted getresuid call with ruid: %lu, euid: %lu, suid: %lu\n", ruid, euid, suid);
-
-	_getresuid = sip_find_sym("getresuid");
-	return _getresuid(ruid, euid, suid);
-}
-
-/**
- * Basic wrapper for getreguid2). It logs the getreguid request, then invokes
- * glibc getreguid(2) with the given argument.
- *
- * Note that the function prototype for getreguid(2) is defined in <unistd.h>.
- */
-
-sip_wrapper(int, getreguid, gid_t *rgid, gid_t *egid, gid_t *sgid) {
-
-	sip_info("Intercepted getreguid call with rgid: %lu, egid: %lu, sgid: %lu\n", rgid, egid, sgid);
-
-	_getreguid = sip_find_sym("getresgid");
-	return _getreguid(rgid, egid, sgid);
 }
 
 /**
