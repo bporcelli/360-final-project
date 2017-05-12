@@ -306,17 +306,24 @@ sip_wrapper(int, getgroups, int size, gid_t list[]) {
 }
 
 /**
- * Basic wrapper for execve(2). It logs the execve request, then invokes
- * glibc execve(2) with the given argument.
+ * Wrapper for execve(2). Enforces the following policy:
  *
- * Note that the function prototype for execve(2) is defined in <unistd.h>.
+ * PROCESS LEVEL | ACTION
+ * ---------------------------------------------------------------------------
+ * HIGH          | Deny if file to be executed is untrusted.
+ * ---------------------------------------------------------------------------
  */
 
 sip_wrapper(int, execve, const char *filename, char *const argv[], char *const envp[]) {
 
-	sip_info("Intercepted execve call with file: %s\n", filename);
+	if (SIP_IS_HIGHI && SIP_LV_LOW == sip_path_to_level(filename)) {
+		sip_info("Blocking attempt to execute low integrity file %s\n", filename);
+		errno = EACCES;
+		return -1;
+	}
 
 	_execve = sip_find_sym("execve");
+
 	return _execve(filename, argv, envp);
 }
 
@@ -784,23 +791,6 @@ sip_wrapper(int, unlinkat, int dirfd, const char *pathname, int flags) {
 
     _unlinkat = sip_find_sym("unlinkat");
     return _unlinkat(dirfd, pathname, flags);
-}
-
-/**
- * Basic wrapper for write(2). It logs the write request, then invokes
- * glibc write(2) with the given arguments.
- *
- * Note that the function prototype for write(2) is defined in <unistd.h>.
- */
-
-sip_wrapper(ssize_t, write, int fd, const void *buf, size_t count) {
-
-	// Don't print log message for now -- wreaks havoc if you try to read log file
-	// e.g. with a program like cat
-	// sip_info("Intercepted write call with fd: %d, count: %lu\n", fd, count);
-
-    _write = sip_find_sym("write");
-    return _write(fd, buf, count);
 }
 
 /**
