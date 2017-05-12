@@ -405,21 +405,6 @@ sip_wrapper(int, statfs, const char *path, struct statfs *buf) {
 }
 
 /**
- * Basic wrapper for futimens(2). It logs the futimens request, then invokes
- * glibc futimens(2) with the given arguments.
- *
- * Note that the function prototype for futimens(2) is defined in <sys/stat.h> <fcntl.h>.
- */
-
-sip_wrapper(int, futimesat, int dirfd, const char *pathname, const struct timeval times[2]) {
-
-	sip_info("Intercepted futimesat call with dirfd: %d, pathname: %s\n", dirfd, pathname);
-
-    _futimesat = sip_find_sym("futimesat");
-    return _futimesat(dirfd, pathname, times);
-}
-
-/**
  * Wrapper for link(2). Enforces the following policy:
  *
  * PROCESS LEVEL | ACTION
@@ -773,47 +758,114 @@ sip_wrapper(ssize_t, write, int fd, const void *buf, size_t count) {
 }
 
 /**
- * Basic wrapper for utime(2). It logs the utime request, then invokes
- * glibc utime(2) with the given arguments.
+ * Wrapper for utime(2). Enforces the following policy:
  *
- * Note that the function prototype for utime(2) is defined in <utime.h>.
+ * PROCESS LEVEL | ACTION
+ * ---------------------------------------------------------------------------
+ * LOW           | Convert path to redirected path if appropriate.
+ * ---------------------------------------------------------------------------
+ * LOW           | If request fails with errno EACCES or EPERM, forward to delegator.
+ * ---------------------------------------------------------------------------
  */
 
 sip_wrapper(int, utime, const char *path, const struct utimbuf *times) {
 
-	sip_info("Intercepted utime call with path: %s\n", path);
+	if (SIP_IS_LOWI) {
+		// TODO: REDIRECT IF NECESSARY. SOMETHING LIKE
+		// *path = sip_get_redirected_path(path);
+	}
 
     _utime = sip_find_sym("utime");
-    return _utime(path, times);
+
+    int rv = _utime(path, times);
+
+    if (rv == -1 && (errno == EACCES || errno == EPERM) && SIP_IS_LOWI) {
+    	// TODO: FORWARD TO DELEGATOR.
+    	sip_info("Would redirect utime request with path %s.\n", path);
+    }
+    return rv;
 }
 
 /**
- * Basic wrapper for utimensat(2). It logs the utimensat request, then invokes
- * glibc utimensat(2) with the given arguments.
+ * Wrapper for utimes(2). Enforces the following policy:
  *
- * Note that the function prototype for utimensat(2) is defined in <utime.h>.
+ * PROCESS LEVEL | ACTION
+ * ---------------------------------------------------------------------------
+ * LOW           | Convert path to redirected path if appropriate.
+ * ---------------------------------------------------------------------------
+ * LOW           | If request fails with errno EACCES or EPERM, forward to delegator.
+ * ---------------------------------------------------------------------------
  */
-
-sip_wrapper(int, utimensat, int dirfd, const char *pathname, const struct timespec times[2], int flags) {
-
-	sip_info("Intercepted utimensat call with dirfd: %d, pathname: %s, flags: %d\n", dirfd, pathname, flags);
-
-    _utimensat = sip_find_sym("utimensat");
-    return _utimensat(dirfd, pathname, times, flags);
-}
-
-/**
- * Basic wrapper for utimes(2). It logs the utimes request, then invokes
- * glibc utimes(2) with the given arguments.
- *
- * Note that the function prototype for utimes(2) is defined in <sys/time.h>.
- */
-
 sip_wrapper(int, utimes, const char *filename, const struct timeval times[2]) {
-
-	sip_info("Intercepted utimes call with filename: %s\n", filename);
+	
+	if (SIP_IS_LOWI) {
+		// TODO: REDIRECT IF NECESSARY. SOMETHING LIKE
+		// *path = sip_get_redirected_path(filename);
+	}
 
     _utimes = sip_find_sym("utimes");
-    return _utimes(filename, times);
+
+    int rv = _utimes(filename, times);
+
+    if (rv == -1 && (errno == EACCES || errno == EPERM) && SIP_IS_LOWI) {
+    	// TODO: FORWARD TO DELEGATOR.
+    	sip_info("Would redirect utimes request with path %s.\n", path);
+    }
+    return rv;
 }
 
+/**
+ * Wrapper for utimensat(2). Enforces the following policy:
+ *
+ * PROCESS LEVEL | ACTION
+ * ---------------------------------------------------------------------------
+ * LOW           | Convert path to redirected path if appropriate.
+ * ---------------------------------------------------------------------------
+ * LOW           | If request fails with errno EACCES or EPERM, forward to delegator.
+ * ---------------------------------------------------------------------------
+ */
+sip_wrapper(int, utimensat, int dirfd, const char *pathname, const struct timespec times[2], int flags) {
+
+	if (SIP_IS_LOWI) {
+		// TODO: REDIRECT IF NECESSARY. SOMETHING LIKE
+		// *path = sip_get_redirected_path(filename);
+	}
+
+    _utimensat = sip_find_sym("utimensat");
+
+    int rv = _utimensat(dirfd, pathname, times, flags);
+
+    if (rv == -1 && (errno == EACCES || errno == EPERM) && SIP_IS_LOWI) {
+    	// TODO: FORWARD TO DELEGATOR.
+    	sip_info("Would redirect utimensat request with path %s.\n", path);
+    }
+    return rv;
+}
+
+/**
+ * Wrapper for futimens(2). Enforces the following policy:
+ *
+ * PROCESS LEVEL | ACTION
+ * ---------------------------------------------------------------------------
+ * LOW           | Convert path to redirected path if appropriate.
+ * ---------------------------------------------------------------------------
+ * LOW           | If request fails with errno EACCES or EPERM, forward to delegator.
+ * ---------------------------------------------------------------------------
+ */
+sip_wrapper(int, futimens, int dirfd, const char *pathname, const struct timeval times[2]) {
+
+	if (SIP_IS_LOWI) {
+		// TODO: REDIRECT IF NECESSARY. SOMETHING LIKE
+		// *path = sip_get_redirected_path(filename);
+	}
+
+    _futimens = sip_find_sym("futimens");
+
+    int rv = _futimens(dirfd, pathname, times);
+
+    if (rv == -1 && (errno == EACCES || errno == EPERM) && SIP_IS_LOWI) {
+    	// TODO: FORWARD TO DELEGATOR.
+    	sip_info("Would redirect futimens request with path %s.\n", path);
+    }
+    return rv;
+}

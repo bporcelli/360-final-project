@@ -44,8 +44,6 @@
 --sys_utimes - "
 --sys_futimesat - "
 --sys_utimensat - "
---sys_readdir - to provide file transparency
-sys_getdents - to provide file transparency
 sys_socketcall - to provide isolation; see lwip_socket_h.c, lwip_socket_l.c
 sys_ipc - see lwip_ipc_h.c
 sys_openat - for isolation; see lwip_open_l.c, lwip_open_h.c
