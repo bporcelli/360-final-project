@@ -609,7 +609,7 @@ sip_wrapper(int, openat, int dirfd, const char * __file, int __oflag, ...) {
 }
 
 /**
- * Wrapper for open(2). Enforces the following policy:
+ * Wrapper for readlink(2). Enforces the following policy:
  *
  * PROCESS LEVEL | ACTION
  * ---------------------------------------------------------------------------
@@ -625,7 +625,7 @@ sip_wrapper(ssize_t, readlink, const char *pathname, char *buf, size_t bufsiz) {
 }
 
 /**
- * Wrapper for open(2). Enforces the following policy:
+ * Wrapper for readlinkat(2). Enforces the following policy:
  *
  * PROCESS LEVEL | ACTION
  * ---------------------------------------------------------------------------
@@ -637,9 +637,19 @@ sip_wrapper(ssize_t, readlinkat, int dirfd, const char *pathname, char *buf, siz
 
     sip_info("Intercepted readlinkat call with dirfd: %d, pathname: %s, bufsiz: %lu\n", dirfd, pathname, bufsiz);
 
+    if(SIP_LV_LOW) {
+		*pathname = sip_convert_if(pathname); 
+	}
+
     _readlinkat = sip_find_sym("readlinkat");
 
-    return _readlinkat(dirfd, pathname, buf, bufsiz);
+    int res = _readlinkat(dirfd, pathname, buf, bufsiz);
+
+    if(sip_is_redirect(buf) == 1) {
+
+    	*buf = sip_revert_path(buf);
+    }
+    return res;
 }
 
 /**
