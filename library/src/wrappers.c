@@ -1,4 +1,3 @@
-#define _GNU_SOURCE // required to expose certain symbols -- don't remove
 
 #include <utime.h>
 #include <sys/statfs.h>
@@ -419,32 +418,44 @@ sip_wrapper(int, futimesat, int dirfd, const char *pathname, const struct timeva
 }
 
 /**
- * Basic wrapper for link(2). It logs the link request, then invokes 
- * glibc link(2) with the given argument.
+ * Wrapper for link(2). Enforces the following policy:
  *
- * Note that the function prototype for link(2) is defined in <unistd.h>
+ * PROCESS LEVEL | ACTION
+ * ---------------------------------------------------------------------------
+ * Send to linkat()
+ * ---------------------------------------------------------------------------
  */
 
 sip_wrapper(int, link, const char *oldpath, const char *newpath) {
 
 	sip_info("Intercepted link call with oldpath: %s, newpath: %s\n", oldpath, newpath);
 
-	_link = sip_find_sym("link");
-	return _link(oldpath, newpath);
+	_link = linkat(AT_FDCWD, oldpath, AT_FDCWD, newpath, AT_SYMLINK_FOLLOW);
+
+	return _link;
 }
 
 /**
- * Basic wrapper for linkat(2). It logs the linkat request, then invokes 
- * glibc linkat(2) with the given argument.
+ * Wrapper for linkat(2). Enforces the following policy:
  *
- * Note that the function prototype for linkat(2) is defined in <fnctl.h> <unistd.h>
+ * PROCESS LEVEL | ACTION
+ * ---------------------------------------------------------------------------
+ * Create link. No need to check trusted or untrusted open() will do that.
+ * ---------------------------------------------------------------------------
  */
 sip_wrapper(int, linkat, int olddirfd, const char *oldpath, int newdirfd, const char *newpath, int flags) {
 
 	sip_info("Intercepted linkat call with olddir: %d, oldpath: %s, newdir: %d, newpath: %s\n", olddirfd, oldpath, newdirfd, newpath);
 
 	_linkat = sip_find_sym("linkat");
-	return _linkat(olddirfd, oldpath, newdirfd, newpath, flags);
+
+	if(_linkat == -1 && errno == EACCES && SIP_IS_LOWI) {
+		// TODO: SEND REQUEST TO DELEGATOR. UPDATE ERRNO/RV ON RESPONSE.
+		// HOW TO DO THIS WITHOUT COPYING THE PIP SOLUTION ONE-FOR-ONE...?
+		sip_info("Would delegate linkat on %s\n", olddirfd);
+	}
+
+	return _linkat;
 }
 
 /**
@@ -508,10 +519,12 @@ sip_wrapper(int, __xmknodat, int ver, int dirfd, const char *pathname, mode_t mo
 }
 
 /**
- * Basic wrapper for open(2). It logs the open request, then invokes
- * glibc open(2) with the given arguments.
+ * Wrapper for open(2). Enforces the following policy:
  *
- * Note that the function prototype for open(2) is defined in <fcntl.h>.
+ * PROCESS
+ * ---------------------------------------------------------------------------
+ * Call openat() to handle this syscall.
+ * ---------------------------------------------------------------------------
  */
 
 sip_wrapper(int, open, const char *__file, int __oflag, ...) {
@@ -526,13 +539,63 @@ sip_wrapper(int, open, const char *__file, int __oflag, ...) {
 	if (__oflag & O_CREAT || __oflag & O_TMPFILE)
 		mode = va_arg(args, mode_t);
 
-	sip_info("intercepted open call with file=%s, flags=%d, mode=%d\n", __file, __oflag, mode);
+	int res = openat(AT_FDCWD, __file, __oflag, mode);
 
 	/* Destory va list */
 	va_end(args);
 
+	return res;
+}
+
+/**
+ * Wrapper for open(2). Enforces the following policy:
+ *
+ * PROCESS LEVEL | ACTION
+ * ---------------------------------------------------------------------------
+ * HIGH          | Deny read/write access for low integrity files.
+ * ---------------------------------------------------------------------------
+ * LOW           | If request fails with errno == EACCES || EISDIR || ENOENT, 
+ *				 | forward to delegator.
+ * ---------------------------------------------------------------------------
+ */
+
+sip_wrapper(int, openat, int dirfd, const char * __file, int __oflag, ...) {
+	va_list args;
+
+	mode_t mode = 0;
+
+	/* Initialize variable argument list */
+	va_start(args, __oflag);
+
+	/* Mode only considered when flags includes O_CREAT or O_TMPFILE */
+	if (__oflag & O_CREAT || __oflag & O_TMPFILE)
+		mode = va_arg(args, mode_t);
+
+	sip_info("intercepted open call with file=%s, flags=%d, mode=%d\n", __file, __oflag, mode);
+
+	/* NOTE: Check if the calling process is trusted or untrusted. If untrusted . */
+	if(SIP_IS_HIGHI) {
+
+
+		if(SIP_LV_LOW == sip_path_to_level(__file)) {
+			sip_info("Denied read/write/exec permissions on low integrity file %s\n", __file);
+			errno = EACCES;
+			return -1;
+		} 
+	}
+	/* Destory va list */
+	va_end(args);
+
 	_open = sip_find_sym("open");
-	return _open(__file, __oflag, mode);
+
+	/* NOTE: If the calling process is trusted check to see if file exists if so then proceed 
+			 with call. */
+	if(_open == -1 && (errno == EACCES || errno == EISDIR || errno == ENOENT) && SIP_IS_LOWI) {
+		// TODO: SEND REQUEST TO DELEGATOR. UPDATE ERRNO/RV ON RESPONSE.
+		// HOW TO DO THIS WITHOUT COPYING THE PIP SOLUTION ONE-FOR-ONE...?
+		sip_info("Would delegate openat on %s\n", __file);
+	}
+	return _open;
 }
 
 /**
