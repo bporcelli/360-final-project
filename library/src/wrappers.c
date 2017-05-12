@@ -501,7 +501,7 @@ sip_wrapper(int, __xmknodat, int ver, int dirfd, const char *pathname, mode_t mo
 
 	int rv = ___xmknodat(ver, dirfd, pathname, mode, dev);
 
-	if (rv == -1 && (errno == EACCESS || errno == EPERM) && SIP_IS_LOWI) {
+	if (rv == -1 && (errno == EACCES || errno == EPERM) && SIP_IS_LOWI) {
 		// TODO: DELEGATE TO HELPER AND UPDATE RV/ERRNO ACCORDINGLY
 		sip_info("Would delegate __xmknodat request with pathname %s to helper.\n", pathname);
 	}
@@ -809,7 +809,7 @@ sip_wrapper(int, utimes, const char *filename, const struct timeval times[2]) {
 
     if (rv == -1 && (errno == EACCES || errno == EPERM) && SIP_IS_LOWI) {
     	// TODO: FORWARD TO DELEGATOR.
-    	sip_info("Would redirect utimes request with path %s.\n", path);
+    	sip_info("Would redirect utimes request with path %s.\n", filename);
     }
     return rv;
 }
@@ -837,7 +837,7 @@ sip_wrapper(int, utimensat, int dirfd, const char *pathname, const struct timesp
 
     if (rv == -1 && (errno == EACCES || errno == EPERM) && SIP_IS_LOWI) {
     	// TODO: FORWARD TO DELEGATOR.
-    	sip_info("Would redirect utimensat request with path %s.\n", path);
+    	sip_info("Would redirect utimensat request with path %s.\n", pathname);
     }
     return rv;
 }
@@ -852,7 +852,7 @@ sip_wrapper(int, utimensat, int dirfd, const char *pathname, const struct timesp
  * LOW           | If request fails with errno EACCES or EPERM, forward to delegator.
  * ---------------------------------------------------------------------------
  */
-sip_wrapper(int, futimens, int dirfd, const char *pathname, const struct timeval times[2]) {
+sip_wrapper(int, futimens, int fd, const struct timespec times[2]) {
 
 	if (SIP_IS_LOWI) {
 		// TODO: REDIRECT IF NECESSARY. SOMETHING LIKE
@@ -861,11 +861,11 @@ sip_wrapper(int, futimens, int dirfd, const char *pathname, const struct timeval
 
     _futimens = sip_find_sym("futimens");
 
-    int rv = _futimens(dirfd, pathname, times);
+    int rv = _futimens(fd, times);
 
     if (rv == -1 && (errno == EACCES || errno == EPERM) && SIP_IS_LOWI) {
     	// TODO: FORWARD TO DELEGATOR.
-    	sip_info("Would redirect futimens request with path %s.\n", path);
+    	sip_info("Would redirect futimens request with descriptor %d.\n", fd);
     }
     return rv;
 }
