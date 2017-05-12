@@ -5,6 +5,7 @@
 #define SIP_LV_LOW 1
 #define SIP_IS_HIGHI (SIP_LV_HIGH == sip_level())
 #define SIP_IS_LOWI (SIP_LV_LOW == sip_level())
+#define sip_level_min(lvl1, lvl2) (lvl1 < lvl2 ? lvl1 : lvl2)
 
 int sip_fd_to_level(int fd);
 int sip_downgrade_fd(int fd);

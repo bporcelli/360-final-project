@@ -6,7 +6,7 @@ TSTD := tests/
 
 LIB_SRC := $(shell find $(SRCD) -name *.c)
 TEST_SRC := $(shell find $(TSTD) -name *.c)
-COM_SRC := $(CMND)/logger.c $(CMND)/level.c
+COM_SRC := $(CMND)/logger.c $(CMND)/level.c $(CMND)/util.c
 
 clean:
 	rm -f $(BIND)*

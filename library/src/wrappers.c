@@ -7,11 +7,13 @@
 #include <stdarg.h>
 #include <sys/stat.h>
 #include <errno.h>
+#include <stdlib.h>
 
 #include "wrappers.h"
 #include "dlhelper.h"
 #include "logger.h"
 #include "level.h"
+#include "util.h"
 
 /**
  * Wrapper for faccessat(2). Enforces the following policy:
@@ -41,8 +43,9 @@ sip_wrapper(int, faccessat, int dirfd, const char *pathname, int mode, int flags
 
 	int rv = _faccessat(dirfd, pathname, mode, flags);
 
-	if (SIP_IS_LOWI && rv == -1 && errno == EACCES) {
+	if (rv == -1 && errno == EACCES && SIP_IS_LOWI) {
 		// TODO: SEND REQUEST TO DELEGATOR. UPDATE ERRNO/RV ON RESPONSE.
+		// HOW TO DO THIS WITHOUT COPYING THE PIP SOLUTION ONE-FOR-ONE...?
 		sip_info("Would delegate faccessat on %s\n", pathname);
 	}
 	return rv;
@@ -56,18 +59,120 @@ sip_wrapper(int, access, const char *pathname, int mode) {
 }
 
 /**
- * Basic wrapper for chmod(2). It logs the chmod request, then invokes
- * glibc chmod(2) with the given argument.
+ * Wrapper for fchmodat(2). Enforces the following policies:
  *
- * Note that the function prototype for chmod(2) is defined in < >.
+ * PROCESS LEVEL | ACTION
+ * ---------------------------------------------------------------------------
+ * HIGH          | None.
+ * ---------------------------------------------------------------------------
+ * LOW           | If request fails with errno EACCES or EPERM, forward to delegator.
+ * ---------------------------------------------------------------------------
  */
+sip_wrapper(int, fchmodat, int dirfd, const char *pathname, mode_t mode, int flags) {
 
+	sip_info("Intercepted fchmodat call with dirfd: %d, path: %s, mode: %d, flags: %d\n", dirfd, pathname, mode, flags);
+
+	_fchmodat = sip_find_sym("fchmodat");
+	
+	int rv = _fchmodat(dirfd, pathname, mode, flags);
+
+	if (rv == -1 && (errno == EACCES || errno == EPERM) && SIP_IS_LOWI) {
+		// TODO: SEND REQUEST TO DELEGATOR. UPDATE ERRNO/RV ON RESPONSE.
+		sip_info("Would delegate faccessat on %s\n", pathname);
+	}
+	return rv;
+}
+
+/**
+ * Wrapper for chmod(2). Redirects to fchmodat(2).
+ */
 sip_wrapper(int, chmod, const char *pathname, mode_t mode) {
+	return fchmodat(AT_FDCWD, pathname, mode, 0);
+}
 
-	sip_info("Intercepted chmod call with path: %s, mode: %d\n", pathname, mode);
+/**
+ * Basic wrapper for fchmod(2). Redirects to fchmodat(2).
+ */
+sip_wrapper(int, fchmod, int fd, mode_t mode) {
+	char* path = sip_fd_to_path(fd);
 
-	_chmod = sip_find_sym("chmod");
-	return _chmod(pathname, mode);
+	if (path == NULL)
+		return -1;
+
+	int res = fchmodat(AT_FDCWD, path, mode, 0);
+
+	free(path);
+	return res;
+}
+
+/**
+ * Basic wrapper for fchownat(2). Enforces the following policies:
+ *
+ * PROCESS LEVEL | ACTION
+ * ---------------------------------------------------------------------------
+ * ALL           | Prevent changes from low -> high integrity.
+ * ---------------------------------------------------------------------------
+ * HIGH          | Allow changes from high -> low integrity.
+ * ---------------------------------------------------------------------------
+ * LOW           | Delegate to helper if request fails with EACCES or EPERM.
+ * ---------------------------------------------------------------------------
+ */
+sip_wrapper(int, fchownat, int dirfd, const char *pathname, uid_t owner, gid_t group, int flags) {
+
+	sip_info("Intercepted fchownat call with dirfd: %d, path: %s, uid: %lu, gid: %lu, flags: %d\n", dirfd, pathname, owner, group, flags);
+
+	int flevel = sip_path_to_level(pathname);
+	int ulevel = sip_uid_to_level(owner);
+	int glevel = sip_gid_to_level(group);
+
+	if (sip_level_min(glevel, ulevel) > flevel) {
+		sip_info("Blocked attempt to upgrade file %s\n", pathname);
+		errno = EACCES;
+		return -1;
+	} else if (sip_level_min(glevel, ulevel) < flevel && SIP_IS_LOWI) {
+		sip_info("Blocked attempt to downgrade file %s\n", pathname);
+		errno = EACCES;
+		return -1;
+	}
+
+	_fchownat = sip_find_sym("fchownat");
+
+	int rv = _fchownat(dirfd, pathname, owner, group, flags);
+
+	if (rv == -1 && (errno == EACCES || errno == EPERM) && SIP_IS_LOWI) {
+		// TODO: SEND REQUEST TO DELEGATOR. UPDATE ERRNO/RV ON RESPONSE.
+		sip_info("Would delegate fchownat on %s\n", pathname);
+	}
+	return rv;
+}
+
+/**
+ * Wrapper for fchown(2). Redirects to fchownat(2).
+ */
+sip_wrapper(int, fchown, int fd, uid_t owner, gid_t group) {
+	char* path = sip_fd_to_path(fd);
+
+	if (path == NULL)
+		return -1;
+
+	int res = fchownat(AT_FDCWD, path, owner, group, 0);
+
+	free(path);
+	return res;
+}
+
+/**
+ * Wrapper for lchown(2). Redirects to fchownat(2).
+ */
+sip_wrapper(int, lchown, const char *pathname, uid_t owner, gid_t group) {
+	return fchownat(AT_FDCWD, pathname, owner, group, AT_SYMLINK_NOFOLLOW);
+}
+
+/**
+ * Wrapper for chown(2). Redirects to fchownat(2).
+ */
+sip_wrapper(int, chown, const char *file, uid_t owner, gid_t group) {
+	return fchownat(AT_FDCWD, file, owner, group, 0);
 }
 
 /**
@@ -83,50 +188,6 @@ sip_wrapper(int, execve, const char *filename, char *const argv[], char *const e
 
 	_execve = sip_find_sym("execve");
 	return _execve(filename, argv, envp);
-}
-
-/**
- * Basic wrapper for fchmod(2). It logs the fchmod request, then invokes
- * glibc fchmod(2) with the given argument.
- *
- * Note that the function prototype for fchmod(2) is defined in <sys/stat.h>.
- */
-
-sip_wrapper(int, fchmod, int fd, mode_t mode) {
-
-	sip_info("Intercepted fchmod call with fd: %d, mode: %d\n", fd, mode);
-
-	_fchmod = sip_find_sym("fchmod");
-	return _fchmod(fd, mode);
-}
-
-/**
- * Basic wrapper for fchmodat(2). It logs the fchmodat request, then invokes
- * glibc fchmodat(2) with the given argument.
- *
- * Note that the function prototype for fchmodat(2) is defined in <sys/stat.h>.
- */
-sip_wrapper(int, fchmodat, int dirfd, const char *pathname, mode_t mode, int flags) {
-
-	sip_info("Intercepted fchmodat call with dirfd: %d, path: %s, mode: %d, flags: %d\n", dirfd, pathname, mode, flags);
-
-	_fchmodat = sip_find_sym("fchmodat");
-	return _fchmodat(dirfd, pathname, mode, flags);
-}
-
-/**
- * Basic wrapper for fchownat(2). It logs the fchownat request, then invokes
- * glibc fchownat(2) with the given argument.
- *
- * Note that the function prototype for fchownat(2) is defined in <unistd.h> <fcntl.h>.
- */
-
-sip_wrapper(int, fchownat, int dirfd, const char *pathname, uid_t owner, gid_t group, int flags) {
-
-	sip_info("Intercepted fchownat call with dirfd: %d, path: %s, uid: %lu, gid: %lu, flags: %d\n", dirfd, pathname, owner, group, flags);
-
-	_fchownat = sip_find_sym("fchownat");
-	return _fchownat(dirfd, pathname, owner, group, flags);
 }
 
 /**
@@ -307,25 +368,6 @@ sip_wrapper(int, getreguid, gid_t *rgid, gid_t *egid, gid_t *sgid) {
 	return _getreguid(rgid, egid, sgid);
 }
 
-
-
-/**
- * Basic wrapper for lchown(2). It logs the lchown request, then invokes
- * glibc lchown(2) with the given argument.
- *
- * Note that the function prototype for lchown(2) is defined in <unistd.h>.
- */
-
-sip_wrapper(int, lchown, const char *pathname, uid_t owner, gid_t group) {
-
-	sip_info("Intercepted lchown call with path: %s, uid: %lu, gid: %lu\n", pathname, owner, group);
-
-	_lchown = sip_find_sym("lchown");
-	return _lchown(pathname, owner, group);
-}
-
-
-
 /**
  * Basic wrapper for link(2). It logs the link request, then invokes 
  * glibc link(2) with the given argument.
@@ -354,10 +396,6 @@ sip_wrapper(int, linkat, int olddirfd, const char *oldpath, int newdirfd, const 
 	_linkat = sip_find_sym("linkat");
 	return _linkat(olddirfd, oldpath, newdirfd, newpath, flags);
 }
-
-
-
-
 
 /**
  * Basic wrapper for mkdir(2). It logs the mkdir request, then invokes

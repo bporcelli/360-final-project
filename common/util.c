@@ -9,6 +9,8 @@
 
 #include "util.h"
 #include "logger.h"
+#include "common.h"
+#include "level.h"
 
 /**
  * Convert the given file descriptor to a file path. Our strategy is to
@@ -58,4 +60,30 @@ char* sip_fd_to_path(int fd) {
 	linkname[r] = '\0';
 
 	return linkname;
+}
+
+/**
+ * Get the integrity level of the given user.
+ *
+ * @param uid_t uid User ID.
+ * @return SIP_LV_HIGH or SIP_LV_LOW
+ */
+int sip_uid_to_level(uid_t uid) {
+	if (uid == SIP_UNTRUSTED_USERID) {
+		return SIP_LV_LOW;
+	}
+	return SIP_LV_HIGH;
+}
+
+/**
+ * Get the integrity level of the given group.
+ *
+ * @param gid_t gid User ID.
+ * @return SIP_LV_HIGH or SIP_LV_LOW
+ */
+int sip_gid_to_level(gid_t gid) {
+	if (gid == SIP_UNTRUSTED_USERID) {
+		return SIP_LV_LOW;
+	}
+	return SIP_LV_HIGH;
 }
