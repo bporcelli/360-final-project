@@ -446,34 +446,38 @@ sip_wrapper(int, linkat, int olddirfd, const char *oldpath, int newdirfd, const 
 }
 
 /**
- * Basic wrapper for mkdir(2). It logs the mkdir request, then invokes
- * glibc mkdir(2) with the given argument.
- *
- * Note that the function prototype for mkdir(2) is defined in <sys/types.h>.
+ * Wrapper for mkdir(2). Redirect to mkdirat(2).
  */
-
 sip_wrapper(int, mkdir, const char *pathname, mode_t mode) {
-
-	sip_info("Intercepted mkdir call with path: %s, mode: %d\n", pathname, mode);
-
-	_mkdir = sip_find_sym("mkdir");
-	return _mkdir(pathname, mode);
+	return mkdirat(AT_FDCWD, pathname, mode);
 }
 
 /**
- * Basic wrapper for mkdirat(2). It logs the mkdirat request, then invokes
- * glibc mkdir(2) with the given arguments.
+ * Wrapper for mkdirat(2). Enforces the following policy:
  *
- * Note that the function prototype for mkdirat(2) is defined in <sys/types.h>
- * and <sys/stat.h>.
+ * PROCESS LEVEL | ACTION
+ * ---------------------------------------------------------------------------
+ * LOW           | Convert path to redirected path if appropriate.
+ * ---------------------------------------------------------------------------
+ * LOW           | If request fails with errno EACCES, forward to delegator.
+ * ---------------------------------------------------------------------------
  */
-
 sip_wrapper(int, mkdirat, int dirfd, const char *pathname, mode_t mode) {
 
-	sip_info("Intercepted mkdirat call with dirfd: %d, path: %s, mode: %d\n", dirfd, pathname, mode);
+	if (SIP_IS_LOWI) {
+		// TODO: REDIRECT IF NECESSARY. SOMETHING LIKE
+		// *path = sip_get_redirected_path(pathname);
+	}
 
 	_mkdirat = sip_find_sym("mkdirat");
-	return _mkdir(pathname, mode);
+	
+	int rv = _mkdirat(dirfd, pathname, mode);
+
+	if (rv == -1 && errno == EACCES && SIP_IS_LOWI) {
+		// TODO: DELEGATE REQUEST
+		sip_info("Would delegate mkdirat request with pathname %s\n", pathname);
+	}
+	return rv;
 }
 
 /**
@@ -491,12 +495,18 @@ sip_wrapper(int, __xmknod, int ver, const char *pathname, mode_t mode, dev_t *de
  *
  * PROCESS LEVEL | ACTION
  * ---------------------------------------------------------------------------
- * HIGH          | None.
+ * LOW           | Convert pathname to redirected path if appropriate.
  * ---------------------------------------------------------------------------
  * LOW           | Delegate to helper if call fails due to lack of permissions.
  * ---------------------------------------------------------------------------
  */
 sip_wrapper(int, __xmknodat, int ver, int dirfd, const char *pathname, mode_t mode, dev_t *dev) {
+
+	if (SIP_IS_LOWI) {
+		// TODO: REDIRECT IF NECESSARY. SOMETHING LIKE
+		// *pathname = sip_get_redirected_path(pathname);
+	}
+
 	___xmknodat = sip_find_sym("__xmknodat");
 
 	int rv = ___xmknodat(ver, dirfd, pathname, mode, dev);
