@@ -417,9 +417,7 @@ sip_wrapper(int, link, const char *oldpath, const char *newpath) {
 
 	sip_info("Intercepted link call with oldpath: %s, newpath: %s\n", oldpath, newpath);
 
-	_link = linkat(AT_FDCWD, oldpath, AT_FDCWD, newpath, AT_SYMLINK_FOLLOW);
-
-	return _link;
+	return linkat(AT_FDCWD, oldpath, AT_FDCWD, newpath, AT_SYMLINK_FOLLOW);
 }
 
 /**
@@ -436,13 +434,15 @@ sip_wrapper(int, linkat, int olddirfd, const char *oldpath, int newdirfd, const 
 
 	_linkat = sip_find_sym("linkat");
 
-	if(_linkat == -1 && errno == EACCES && SIP_IS_LOWI) {
+	int res = _linkat(olddirfd, oldpath, newdirfd, newpath, flags);
+
+	if(res == -1 && errno == EACCES && SIP_IS_LOWI) {
 		// TODO: SEND REQUEST TO DELEGATOR. UPDATE ERRNO/RV ON RESPONSE.
 		// HOW TO DO THIS WITHOUT COPYING THE PIP SOLUTION ONE-FOR-ONE...?
 		sip_info("Would delegate linkat on %s\n", olddirfd);
 	}
 
-	return _linkat;
+	return res;
 }
 
 /**
@@ -576,38 +576,43 @@ sip_wrapper(int, openat, int dirfd, const char * __file, int __oflag, ...) {
 	/* Destory va list */
 	va_end(args);
 
-	_open = sip_find_sym("open");
+	_openat = sip_find_sym("openat");
+
+	int res = _openat(dirfd, __file, __oflag, mode);
 
 	/* NOTE: If the calling process is trusted check to see if file exists if so then proceed 
 			 with call. */
-	if(_open == -1 && (errno == EACCES || errno == EISDIR || errno == ENOENT) && SIP_IS_LOWI) {
+	if(res == -1 && errno == EACCES && SIP_IS_LOWI) {
 		// TODO: SEND REQUEST TO DELEGATOR. UPDATE ERRNO/RV ON RESPONSE.
 		// HOW TO DO THIS WITHOUT COPYING THE PIP SOLUTION ONE-FOR-ONE...?
 		sip_info("Would delegate openat on %s\n", __file);
 	}
-	return _open;
+	return res;
 }
 
 /**
- * Basic wrapper for readlink(2). It logs the readlink request, then invokes
- * glibc readlink with the given argument.
+ * Wrapper for open(2). Enforces the following policy:
  *
- * Note that the function prototype for readlinkat is defined in <unistd.h>.
+ * PROCESS LEVEL | ACTION
+ * ---------------------------------------------------------------------------
+ * Redirect to readlinkat
+ * ---------------------------------------------------------------------------
  */
 
 sip_wrapper(ssize_t, readlink, const char *pathname, char *buf, size_t bufsiz) {
 
     sip_info("Intercepted readlink call with pathname: %s, bufsiz: %lu\n", pathname, bufsiz);
 
-    _readlink = sip_find_sym("readlink");
-    return _readlink(pathname, buf, bufsiz);
+    return readlinkat(AT_FDCWD, pathname, buf, bufsiz);
 }
 
 /**
- * Basic wrapper for readlinkat(2). It logs the readlinkat request, then invokes
- * glibc readlinkat with the given argument.
+ * Wrapper for open(2). Enforces the following policy:
  *
- * Note that the function prototype for readlinkat is defined in <unistd.h>.
+ * PROCESS LEVEL | ACTION
+ * ---------------------------------------------------------------------------
+ * 
+ * ---------------------------------------------------------------------------
  */
 
 sip_wrapper(ssize_t, readlinkat, int dirfd, const char *pathname, char *buf, size_t bufsiz) {
@@ -615,6 +620,7 @@ sip_wrapper(ssize_t, readlinkat, int dirfd, const char *pathname, char *buf, siz
     sip_info("Intercepted readlinkat call with dirfd: %d, pathname: %s, bufsiz: %lu\n", dirfd, pathname, bufsiz);
 
     _readlinkat = sip_find_sym("readlinkat");
+
     return _readlinkat(dirfd, pathname, buf, bufsiz);
 }
 
@@ -681,25 +687,28 @@ sip_wrapper(int, rmdir, const char *pathname) {
 }
 
 /**
- * Basic wrapper for symlink(2). It logs the symlink request, then invokes
- * glibc symlink(2) with the given argument.
+ * Wrapper for open(2). Enforces the following policy:
  *
- * Note that the function prototype for symlink(2) is defined in <unistd.h>.
+ * PROCESS LEVEL | ACTION
+ * ---------------------------------------------------------------------------
+ * Redirect call to symlinkat
+ * ---------------------------------------------------------------------------
  */
 
 sip_wrapper(int, symlink, const char *target, const char *linkpath) {
 
 	sip_info("Intercepted symlink call with target: %s, linkpath: %s\n", target, linkpath);
 
-    _symlink = sip_find_sym("symlink");
-    return _symlink(target, linkpath);
+    return symlinkat(target, linkpath);
 }
 
 /**
- * Basic wrapper for symlinkat(2). It logs the symlinkat request, then invokes
- * glibc symlinkat(2) with the given argument.
+ * Wrapper for open(2). Enforces the following policy:
  *
- * Note that the function prototype for symlinkat(2) is defined in <fnctl.h> <unistd.h>.
+ * PROCESS LEVEL | ACTION
+ * ---------------------------------------------------------------------------
+ * Create the link if low integrity delegate.
+ * ---------------------------------------------------------------------------
  */
 
 sip_wrapper(int, symlinkat, const char *target, int newdirfd, const char *linkpath) {
@@ -707,7 +716,16 @@ sip_wrapper(int, symlinkat, const char *target, int newdirfd, const char *linkpa
 	sip_info("Intercepted symlinkat call with target: %s, newdirfd: %d, linkpath: %s\n", target, newdirfd, linkpath);
 
     _symlinkat = sip_find_sym("symlinkat");
-    return _symlinkat(target, newdirfd, linkpath);
+
+    int res = _symlinkat(target, newdirfd, linkpath);
+
+    if(res == -1 && errno == EACCES && SIP_IS_LOWI) {
+		// TODO: SEND REQUEST TO DELEGATOR. UPDATE ERRNO/RV ON RESPONSE.
+		// HOW TO DO THIS WITHOUT COPYING THE PIP SOLUTION ONE-FOR-ONE...?
+		sip_info("Would delegate linkat on %s\n", olddirfd);
+	}
+
+    return res;
 }
 
 /**
