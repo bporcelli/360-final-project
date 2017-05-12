@@ -321,36 +321,14 @@ sip_wrapper(int, execve, const char *filename, char *const argv[], char *const e
 }
 
 /**
- * Basic wrapper for stat(2). It logs the stat request, then invokes 
- * glibc stat(2) with the given argument.
+ * Wrapper for fstatat(2). Enforces the following policies:
  *
- * NOTE: __xstat is the name libc uses internally for stat.
- */
-sip_wrapper(int, __xstat, int ver, const char *pathname, struct stat *statbuf) {
-
-	sip_info("Intercepted stat call with path: %s\n", pathname);
-
-	___xstat = sip_find_sym("__xstat");
-	return ___xstat(ver, pathname, statbuf);
-}
-
-/**
- * Basic wrapper for fstat(2). It logs the fstat request, then invokes
- * glibc fstat(2) with the given argument.
- *
- * NOTE: __fxstat is the name libc uses internally for fstat.
- */
-sip_wrapper(int, __fxstat, int ver, int fd, struct stat *statbuf) {
-
-	sip_info("Intercepted fstat call with fd: %d\n", fd);
-
-	___fxstat = sip_find_sym("__fxstat");
-	return ___fxstat(ver, fd, statbuf);
-}
-
-/**
- * Basic wrapper for fstatat(2). It logs the fstatat request, then invokes
- * glibc fstatat(2) with the given argument.
+ * PROCESS LEVEL | ACTION
+ * ---------------------------------------------------------------------------
+ * LOW           | Convert path to redirected path if appropriate.
+ * ---------------------------------------------------------------------------
+ * LOW           | If request fails with errno EACCES, forward to delegator.
+ * ---------------------------------------------------------------------------
  *
  * NOTE: __fxstatat is the name libc uses internally for fstatat.
  */
@@ -358,22 +336,52 @@ sip_wrapper(int, __fxstatat, int ver, int dirfd, const char *pathname, struct st
 
 	sip_info("Intercepted fstatat call with dirfd: %d, path: %s, flags: %d\n", dirfd, pathname, flags);
 
+	if (SIP_IS_LOWI) {
+		// TODO: REDIRECT IF NECESSARY. SOMETHING LIKE
+		// *pathname = sip_get_redirected_path(pathname);
+	}
+
 	___fxstatat = sip_find_sym("__fxstatat");
-	return ___fxstatat(ver, dirfd, pathname, statbuf, flags);
+
+	int rv = ___fxstatat(ver, dirfd, pathname, statbuf, flags);
+
+	if (rv == -1 && errno == EACCES && SIP_IS_LOWI) {
+		// TODO: FORWARD REQUEST TO DELEGATOR.
+		sip_info("Would forward __fxstatat request with pathname %s\n", pathname);
+	}
+	return rv;
 }
 
 /**
- * Basic wrapper for lstat(2). It logs the lstat request, then invokes 
- * glibc lstat(2) with the given argument.
+ * Wrapper for stat(2). Redirects to fstatat(2).
+ *
+ * NOTE: __xstat is the name libc uses internally for stat.
+ */
+sip_wrapper(int, __xstat, int ver, const char *pathname, struct stat *statbuf) {
+	return __fxstatat(ver, AT_FDCWD, pathname, statbuf, 0);
+}
+
+/**
+ * Wrapper for fstat(2). Redirects to fstatat(2).
+ *
+ * NOTE: __fxstat is the name libc uses internally for fstat.
+ */
+sip_wrapper(int, __fxstat, int ver, int fd, struct stat *statbuf) {
+	char* path = sip_fd_to_path(fd);
+
+	if (path == NULL)
+		return -1;
+
+	return __fxstatat(ver, AT_FDCWD, path, statbuf, 0);
+}
+
+/**
+ * Wrapper for lstat(2). Redirects to fstatat(2).
  *
  * NOTE: __lxstat is the name libc uses internally for lstat.
  */
 sip_wrapper(int, __lxstat, int ver, const char *pathname, struct stat *statbuf) {
-
-	sip_info("Intercepted lstat call with path: %s\n", pathname);
-
-	___lxstat = sip_find_sym("__lxstat");
-	return ___lxstat(ver, pathname, statbuf);
+	return __fxstatat(ver, AT_FDCWD, pathname, statbuf, AT_SYMLINK_NOFOLLOW);
 }
 
 /**
