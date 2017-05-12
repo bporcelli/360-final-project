@@ -15,6 +15,8 @@
 #include "level.h"
 #include "util.h"
 
+// TODO: REVISIT ALL WRAPPERS AND ADD SUPPORT FOR FILE REDIRECTION
+
 /**
  * Wrapper for faccessat(2). Enforces the following policy:
  *
@@ -490,32 +492,35 @@ sip_wrapper(int, mkdirat, int dirfd, const char *pathname, mode_t mode) {
 }
 
 /**
- * Basic wrapper for mknod(2). It logs the mknod request, then invokes
- * glibc mknod(2) with the given arguments.
+ * Wrapper for mknod(2). Redirects to mknodat(2).
  *
  * NOTE: __xmknod is the name libc uses internally for mknod.
  */
 
 sip_wrapper(int, __xmknod, int ver, const char *pathname, mode_t mode, dev_t *dev) {
-
-	sip_info("Intercepted mknod call with path: %s, mode: %lu, dev: %lu\n", pathname, mode, dev);
-
-	___xmknod = sip_find_sym("__xmknod");
-	return ___xmknod(ver, pathname, mode, dev);
+	return __xmknodat(ver, AT_FDCWD, pathname, mode, dev);
 }
 
 /**
- * Basic wrapper for mknodat(2). It logs the mknodat request, then invokes
- * glibc mknodat(2) with the given arguments.
+ * Wrapper for mknodat(2). Enforces the following policy:
  *
- * NOTE: __xmknodat is the name libc uses internally for mknod.
+ * PROCESS LEVEL | ACTION
+ * ---------------------------------------------------------------------------
+ * HIGH          | None.
+ * ---------------------------------------------------------------------------
+ * LOW           | Delegate to helper if call fails due to lack of permissions.
+ * ---------------------------------------------------------------------------
  */
 sip_wrapper(int, __xmknodat, int ver, int dirfd, const char *pathname, mode_t mode, dev_t *dev) {
-
-	sip_info("Intercepted mknodat call with dirfd: %d, path: %s, mode: %lu, dev: %lu\n", dirfd, pathname, mode, dev);
-
 	___xmknodat = sip_find_sym("__xmknodat");
-	return ___xmknodat(ver, dirfd, pathname, mode, dev);
+
+	int rv = ___xmknodat(ver, dirfd, pathname, mode, dev);
+
+	if (rv == -1 && (errno == EACCESS || errno == EPERM) && SIP_IS_LOWI) {
+		// TODO: DELEGATE TO HELPER AND UPDATE RV/ERRNO ACCORDINGLY
+		sip_info("Would delegate __xmknodat request with pathname %s to helper.\n", pathname);
+	}
+	return rv;
 }
 
 /**
