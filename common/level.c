@@ -58,6 +58,32 @@ int sip_path_to_level(const char* path) {
 }
 
 /**
+ * Get the integrity level of the given user.
+ *
+ * @param uid_t uid User ID.
+ * @return SIP_LV_HIGH or SIP_LV_LOW
+ */
+int sip_uid_to_level(uid_t uid) {
+	if (uid == SIP_UNTRUSTED_USERID) {
+		return SIP_LV_LOW;
+	}
+	return SIP_LV_HIGH;
+}
+
+/**
+ * Get the integrity level of the given group.
+ *
+ * @param gid_t gid User ID.
+ * @return SIP_LV_HIGH or SIP_LV_LOW
+ */
+int sip_gid_to_level(gid_t gid) {
+	if (gid == SIP_UNTRUSTED_USERID) {
+		return SIP_LV_LOW;
+	}
+	return SIP_LV_HIGH;
+}
+
+/**
  * Attempt to downgrade the integrity level of the file with the given
  * descriptor.
  *
