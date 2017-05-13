@@ -27,14 +27,17 @@
  * LOW           | If request fails with errno EACCES, forward to delegator.
  * ---------------------------------------------------------------------------
  */
+
 sip_wrapper(int, faccessat, int dirfd, const char *pathname, int mode, int flags) {
 
 	sip_info("Intercepted faccessat call with dirfd: %d, path: %s, mode: %d, flags: %d\n", dirfd, pathname, mode, flags);
 
 	if (SIP_IS_HIGHI) {
+
 		int read_or_exec = (mode & R_OK) || (mode & X_OK);
 
 		if (SIP_LV_LOW == sip_path_to_level(pathname) && read_or_exec) {
+
 			sip_info("Denied read/exec permissions on low integrity file %s\n", pathname);
 			errno = EACCES;
 			return -1;
@@ -54,9 +57,16 @@ sip_wrapper(int, faccessat, int dirfd, const char *pathname, int mode, int flags
 }
 
 /**
- * Wrapper for access(2). Redirects to faccessat(2).
+ * Wrapper for access(2). Enforces the following policies:
+ *
+ * PROCESS LEVEL | ACTION
+ * ---------------------------------------------------------------------------
+ * Redirects to faccessat().
+ * ---------------------------------------------------------------------------
  */
+
 sip_wrapper(int, access, const char *pathname, int mode) {
+
 	return faccessat(AT_FDCWD, pathname, mode, 0);
 }
 
@@ -70,6 +80,7 @@ sip_wrapper(int, access, const char *pathname, int mode) {
  * LOW           | If request fails with errno EACCES or EPERM, forward to delegator.
  * ---------------------------------------------------------------------------
  */
+
 sip_wrapper(int, fchmodat, int dirfd, const char *pathname, mode_t mode, int flags) {
 
 	sip_info("Intercepted fchmodat call with dirfd: %d, path: %s, mode: %d, flags: %d\n", dirfd, pathname, mode, flags);
@@ -88,6 +99,7 @@ sip_wrapper(int, fchmodat, int dirfd, const char *pathname, mode_t mode, int fla
 /**
  * Wrapper for chmod(2). Redirects to fchmodat(2).
  */
+
 sip_wrapper(int, chmod, const char *pathname, mode_t mode) {
 	return fchmodat(AT_FDCWD, pathname, mode, 0);
 }
@@ -95,6 +107,7 @@ sip_wrapper(int, chmod, const char *pathname, mode_t mode) {
 /**
  * Basic wrapper for fchmod(2). Redirects to fchmodat(2).
  */
+
 sip_wrapper(int, fchmod, int fd, mode_t mode) {
 	char* path = sip_fd_to_path(fd);
 
@@ -119,6 +132,7 @@ sip_wrapper(int, fchmod, int fd, mode_t mode) {
  * LOW           | Delegate to helper if request fails with EACCES or EPERM.
  * ---------------------------------------------------------------------------
  */
+
 sip_wrapper(int, fchownat, int dirfd, const char *pathname, uid_t owner, gid_t group, int flags) {
 
 	sip_info("Intercepted fchownat call with dirfd: %d, path: %s, uid: %lu, gid: %lu, flags: %d\n", dirfd, pathname, owner, group, flags);
@@ -151,6 +165,7 @@ sip_wrapper(int, fchownat, int dirfd, const char *pathname, uid_t owner, gid_t g
 /**
  * Wrapper for fchown(2). Redirects to fchownat(2).
  */
+
 sip_wrapper(int, fchown, int fd, uid_t owner, gid_t group) {
 	char* path = sip_fd_to_path(fd);
 
@@ -168,6 +183,7 @@ sip_wrapper(int, fchown, int fd, uid_t owner, gid_t group) {
 /**
  * Wrapper for lchown(2). Redirects to fchownat(2).
  */
+
 sip_wrapper(int, lchown, const char *pathname, uid_t owner, gid_t group) {
 	return fchownat(AT_FDCWD, pathname, owner, group, AT_SYMLINK_NOFOLLOW);
 }
@@ -175,6 +191,7 @@ sip_wrapper(int, lchown, const char *pathname, uid_t owner, gid_t group) {
 /**
  * Wrapper for chown(2). Redirects to fchownat(2).
  */
+
 sip_wrapper(int, chown, const char *file, uid_t owner, gid_t group) {
 	return fchownat(AT_FDCWD, file, owner, group, 0);
 }
@@ -189,6 +206,7 @@ sip_wrapper(int, chown, const char *file, uid_t owner, gid_t group) {
  * LOW           | If real GID is untrusted GID, return trusted GID.
  * ---------------------------------------------------------------------------
  */
+
 sip_wrapper(uid_t, getgid, void) {
 	_getgid = sip_find_sym("getgid");
 
@@ -210,6 +228,7 @@ sip_wrapper(uid_t, getgid, void) {
  * LOW           | If real, saved, or effective GID is untrusted, return trusted GID.
  * ---------------------------------------------------------------------------
  */
+
 sip_wrapper(int, getresgid, gid_t *rgid, gid_t *egid, gid_t *sgid) {
 	_getresgid = sip_find_sym("getresgid");
 
@@ -238,6 +257,7 @@ sip_wrapper(int, getresgid, gid_t *rgid, gid_t *egid, gid_t *sgid) {
  * LOW           | If real UID is untrusted UID, return trusted UID.
  * ---------------------------------------------------------------------------
  */
+
 sip_wrapper(uid_t, getuid, void) {
 	_getuid = sip_find_sym("getuid");
 
@@ -259,6 +279,7 @@ sip_wrapper(uid_t, getuid, void) {
  * LOW           | If real, effective, or saved UID is untrusted UID, return trusted UID.
  * ---------------------------------------------------------------------------
  */
+
 sip_wrapper(int, getresuid, uid_t *ruid, uid_t *euid, uid_t *suid) {
 	_getresuid = sip_find_sym("getresuid");
 
@@ -287,7 +308,9 @@ sip_wrapper(int, getresuid, uid_t *ruid, uid_t *euid, uid_t *suid) {
  * LOW           | Substitute untrusted GID with trusted GID in result.
  * ---------------------------------------------------------------------------
  */
+
 sip_wrapper(int, getgroups, int size, gid_t list[]) {
+
 	_getgroups = sip_find_sym("getgroups");
 
 	int rv = _getgroups(size, list), i;
@@ -332,6 +355,7 @@ sip_wrapper(int, execve, const char *filename, char *const argv[], char *const e
  *
  * NOTE: __fxstatat is the name libc uses internally for fstatat.
  */
+
 sip_wrapper(int, __fxstatat, int ver, int dirfd, const char *pathname, struct stat *statbuf, int flags) {
 
 	sip_info("Intercepted fstatat call with dirfd: %d, path: %s, flags: %d\n", dirfd, pathname, flags);
@@ -366,6 +390,7 @@ sip_wrapper(int, __xstat, int ver, const char *pathname, struct stat *statbuf) {
  *
  * NOTE: __fxstat is the name libc uses internally for fstat.
  */
+
 sip_wrapper(int, __fxstat, int ver, int fd, struct stat *statbuf) {
 	char* path = sip_fd_to_path(fd);
 
@@ -380,36 +405,83 @@ sip_wrapper(int, __fxstat, int ver, int fd, struct stat *statbuf) {
  *
  * NOTE: __lxstat is the name libc uses internally for lstat.
  */
+
 sip_wrapper(int, __lxstat, int ver, const char *pathname, struct stat *statbuf) {
 	return __fxstatat(ver, AT_FDCWD, pathname, statbuf, AT_SYMLINK_NOFOLLOW);
 }
 
 /**
- * Basic wrapper for fstatfs(2). It logs the fstatfs request, then invokes 
- * glibc fstatfs(2) with the given argument.
+ * Wrapper for fstatvfs(3). Enforces the following process:
  *
- * Note that the function prototype for fstatfs(2) is defined in <sys/vfs.h>
+ * PROCESS LEVEL | ACTION
+ * ---------------------------------------------------------------------------
+ * HIGH          | 
+ * ---------------------------------------------------------------------------
+ * LOW           | 
+ * ---------------------------------------------------------------------------
  */
-sip_wrapper(int, fstatfs, int fd, struct statfs *buf) {
+
+sip_wrapper(int, fstatvfs, int fd, struct fstatvfs *buf) {
 
 	sip_info("Intercepted fstatfs call with fd: %d\n", fd);
+	
+	if (SIP_IS_LOWI) {
 
-	_fstatfs = sip_find_sym("fstatfs");
-	return _fstatfs(fd, buf);
+		*fd = sip_convert_fd_if(*fd); 
+	}
+
+	___fstatvfs = sip_find_sym("__fstatvfs");
+
+    int res == ___statvfs(fd, buf);
+
+    if(sip_is_redirect(buf) == 1) {
+
+    	*buf = sip_revert_path(buf);
+    }
+
+	if (res == -1 && errno == EACCES && SIP_IS_LOWI) {
+		// TODO: FORWARD REQUEST TO DELEGATOR.
+		sip_info("Would forward __statvfs request with path %s\n", fd);
+	}
+
+	return buf;
 }
 
 /**
- * Basic wrapper for statfs(2). It logs the statfs request, then invokes 
- * glibc statfs(2) with the given argument.
+ * Wrapper for statvfs(3). Enforces the following process:
  *
- * Note that the function prototype for statfs(2) is defined in <sys/vfs.h>
+ * PROCESS LEVEL | ACTION
+ * ---------------------------------------------------------------------------
+ * HIGH          | 
+ * ---------------------------------------------------------------------------
+ * LOW           | 
+ * ---------------------------------------------------------------------------
  */
-sip_wrapper(int, statfs, const char *path, struct statfs *buf) {
+
+sip_wrapper(int, statvfs, const char *path, struct statvfs *buf) {
 
 	sip_info("Intercepted statfs call with path: %s\n", path);
+	
+	if (SIP_IS_LOWI) {
 
-	_statfs = sip_find_sym("statfs");
-	return _statfs(path, buf);
+		*path = sip_convert_if(path); 
+	}
+
+	___statvfs = sip_find_sym("__statvfs");
+
+    int res == ___statvfs(path, buf);
+
+    if(sip_is_redirect(buf) == 1) {
+
+    	*buf = sip_revert_path(buf);
+    }
+
+	if (res == -1 && errno == EACCES && SIP_IS_LOWI) {
+		// TODO: FORWARD REQUEST TO DELEGATOR.
+		sip_info("Would forward __statvfs request with path %s\n", path);
+	}
+
+	return buf;
 }
 
 /**
@@ -454,9 +526,15 @@ sip_wrapper(int, linkat, int olddirfd, const char *oldpath, int newdirfd, const 
 }
 
 /**
- * Wrapper for mkdir(2). Redirect to mkdirat(2).
+ * Wrapper for mkdir(2). Enforces the following policies:
+ *
+ * PROCESS LEVEL | ACTION
+ * ---------------------------------------------------------------------------
+ * Redirects to mkdirat().
+ * ---------------------------------------------------------------------------
  */
 sip_wrapper(int, mkdir, const char *pathname, mode_t mode) {
+
 	return mkdirat(AT_FDCWD, pathname, mode);
 }
 
@@ -641,9 +719,9 @@ sip_wrapper(ssize_t, readlinkat, int dirfd, const char *pathname, char *buf, siz
 		*pathname = sip_convert_if(pathname); 
 	}
 
-    _readlinkat = sip_find_sym("readlinkat");
+    __readlinkat = sip_find_sym("readlinkat");
 
-    int res = _readlinkat(dirfd, pathname, buf, bufsiz);
+    int res = __readlinkat(dirfd, pathname, buf, bufsiz);
 
     if(sip_is_redirect(buf) == 1) {
 
@@ -653,40 +731,44 @@ sip_wrapper(ssize_t, readlinkat, int dirfd, const char *pathname, char *buf, siz
 }
 
 /**
- * Basic wrapper for rename(2). It logs the rename(2) request, then invokes
- * glibc rename with the given argument.
+ * Wrapper for rename(2). Enforces the following policy:
  *
- * Note that the function prototype for rename is defined in <stdio.h>.
+ * PROCESS LEVEL | ACTION
+ * ---------------------------------------------------------------------------
+ * Redirects to renameat()
+ * ---------------------------------------------------------------------------
  */
 
 sip_wrapper(int, rename, const char *oldpath, const char *newpath) {
 
     sip_info("Intercepted rename call with oldpath: %s, newpath: %s\n", oldpath, newpath);
 
-    _rename = sip_find_sym("rename");
-    return _rename(oldpath, newpath);
+    return renameat(AT_FDCWD, oldpath, AT_FDCWD, newpath);
 }
 
 /**
- * Basic wrapper for renameat(2). It logs the renameat(2) request, then invokes
- * glibc renameat with the given argument.
+ * Wrapper for renameat(2). Enforces the following policy:
  *
- * Note that the function prototype for renameat is defined in <fcntl.h> <stdio.h>.
+ * PROCESS LEVEL | ACTION
+ * ---------------------------------------------------------------------------
+ * Redirects to renameat2()
+ * ---------------------------------------------------------------------------
  */
 
 sip_wrapper(int, renameat, int olddirfd, const char *oldpath, int newdirfd, const char *newpath) {
 
     sip_info("Intercepted renameat call with olddirfd: %s, oldpath: %s, newdirfd: %d\n", olddirfd, oldpath, newpath);
 
-    _renameat = sip_find_sym("renameat");
-    return _renameat(olddirfd, oldpath, newdirfd, newpath);
+    return renameat2(olddirfd, oldpath, newdirfd, newpath, AT_FDCWD);
 }
 
 /**
- * Basic wrapper for renameat2(2). It logs the renameat2(2) request, then invokes
- * glibc renameat2 with the given argument.
+ * Wrapper for renameat2(2). Enforces the following policy:
  *
- * Note that the function prototype for renameat2 is defined in <fcntl.h> <stdio.h>.
+ * PROCESS LEVEL | ACTION
+ * ---------------------------------------------------------------------------
+ * 
+ * ---------------------------------------------------------------------------
  */
 
 sip_wrapper(int, renameat2, int olddirfd, const char *oldpath, int newdirfd, const char *newpath, unsigned int flags) {
@@ -694,28 +776,45 @@ sip_wrapper(int, renameat2, int olddirfd, const char *oldpath, int newdirfd, con
     sip_info("Intercepted renameatat2 call with olddirfd: %s, oldpath: %s, newdirfd: %d, newpath: %s, flags: %d\n", 
     	olddirfd, oldpath, newdirfd, newpath, flags);
 
-    _renameat2 = sip_find_sym("renameat2");
-    return _renameat2(olddirfd, oldpath, newdirfd, newpath, flags);
+    __renameat2 = sip_find_sym("renameat2");
+    return __renameat2(olddirfd, oldpath, newdirfd, newpath, flags);
 }
 
 
 
 /**
- * Basic wrapper for rmdir. It logs the rmdir request, then invokes
- * glibc rmdirt with the given argument.
+ * Wrapper for rmdir(2). Enforces the following policy:
  *
- * Note that the function prototype for rmdir is defined in <unistd.h>.
+ * PROCESS LEVEL | ACTION
+ * ---------------------------------------------------------------------------
+ * High 		 | Allow rmdir to execute with original path
+ * ---------------------------------------------------------------------------
+ * Low 		 	 | Change the pathname to point to the correct dir in the 
+ * 			 	 | /tmp folder that we created.
+ * ---------------------------------------------------------------------------
  */
 sip_wrapper(int, rmdir, const char *pathname) {
 
 	sip_info("Intercepted rmdir call with path: %s\n", pathname);
 
-	_rmdir = sip_find_sym("rmdir");
-	return _rmdir(pathname);
+    if(SIP_LV_LOW) {
+		*pathname = sip_convert_if(pathname); 
+	}
+
+    __rmdir = sip_find_sym("rmdir");
+
+    int res = __rmdir(pathname);
+
+    if(sip_is_redirect(pathname) == 1) {
+
+    	*res = sip_revert_path(pathname);
+    }
+
+    return res;
 }
 
 /**
- * Wrapper for open(2). Enforces the following policy:
+ * Wrapper for symlink(2). Enforces the following policy:
  *
  * PROCESS LEVEL | ACTION
  * ---------------------------------------------------------------------------
@@ -731,7 +830,7 @@ sip_wrapper(int, symlink, const char *target, const char *linkpath) {
 }
 
 /**
- * Wrapper for open(2). Enforces the following policy:
+ * Wrapper for symlinkat(2). Enforces the following policy:
  *
  * PROCESS LEVEL | ACTION
  * ---------------------------------------------------------------------------
@@ -743,9 +842,9 @@ sip_wrapper(int, symlinkat, const char *target, int newdirfd, const char *linkpa
 
 	sip_info("Intercepted symlinkat call with target: %s, newdirfd: %d, linkpath: %s\n", target, newdirfd, linkpath);
 
-    _symlinkat = sip_find_sym("symlinkat");
+    __symlinkat = sip_find_sym("symlinkat");
 
-    int res = _symlinkat(target, newdirfd, linkpath);
+    int res = __symlinkat(target, newdirfd, linkpath);
 
     if(res == -1 && errno == EACCES && SIP_IS_LOWI) {
 		// TODO: SEND REQUEST TO DELEGATOR. UPDATE ERRNO/RV ON RESPONSE.
@@ -757,33 +856,51 @@ sip_wrapper(int, symlinkat, const char *target, int newdirfd, const char *linkpa
 }
 
 /**
- * Basic wrapper for unlink(2). It logs the unlink request, then invokes
- * glibc unlink(2) with the given argument.
+ * Wrapper for unlink(2). Enforces the following policy:
  *
- * Note that the function prototype for unlink(2) is defined in <unistd.h>.
+ * PROCESS LEVEL | ACTION
+ * ---------------------------------------------------------------------------
+ * Call unlinkat() to process.
+ * ---------------------------------------------------------------------------
  */
 
 sip_wrapper(int, unlink, const char *pathname) {
 
 	sip_info("Intercepted unlink call with path: %s\n", pathname);
 
-    _unlink = sip_find_sym("unlink");
-    return _unlink(pathname);
+    return unlinkat(AT_FDCWD, pathname, AT_FDCWD, AT_SYMLINK_FOLLOW);
 }
 
 /**
- * Basic wrapper for unlinkT(2). It logs the unlinkT request, then invokes
- * glibc unlinkat(2) with the given argument.
+ * Wrapper for unlinkat(2). Enforces the following policy:
  *
- * Note that the function prototype for unlinkat(2) is defined in <fnctl.h> <unistd.h>.
+ * PROCESS LEVEL | ACTION
+ * ---------------------------------------------------------------------------
+ * High 		 | Send original pathname
+ * ---------------------------------------------------------------------------
+ * Low 			 | Alter the pathname so it points to the correct file in the 
+ * 				 | /tmp/ folder.
+ * ---------------------------------------------------------------------------
  */
 
 sip_wrapper(int, unlinkat, int dirfd, const char *pathname, int flags) {
 
 	sip_info("Intercepted unlinkat call with dirfd: %d, path: %s, flags: %d\n", dirfd, pathname, flags);
 
-    _unlinkat = sip_find_sym("unlinkat");
-    return _unlinkat(dirfd, pathname, flags);
+   
+    if(SIP_LV_LOW) {
+		*pathname = sip_convert_if(pathname); 
+	}
+
+    __unlinkat = sip_find_sym("unlinkat");
+
+    int res = __unlinkat(dirfd, pathname, flags);
+
+    if(sip_is_redirect(pathname) == 1) {
+
+    	*res = sip_revert_path(pathname);
+    }
+    return res;
 }
 
 /**

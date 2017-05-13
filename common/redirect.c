@@ -43,10 +43,26 @@ const char *sip_convert_if(const char *pathname) {
 	char *test = sip_build_redirect_path(pathname);
 
 	if(access(test, F_OK) != -1) {
+
 		return test;
 	}
 	else {
+
 		return pathname;
+	}
+}
+
+int *sip_convert_fd_if(int *fd) {
+
+	int *test = sip_build_redirect_path(*fd);
+
+	if(access(test, F_OK) != -1) {
+		
+		return test;
+	}
+	else {
+
+		return test;
 	}
 }
 
