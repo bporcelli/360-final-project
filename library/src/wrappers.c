@@ -646,7 +646,8 @@ sip_wrapper(ssize_t, readlinkat, int dirfd, const char *pathname, char *buf, siz
 
     /* Redirect pathname before call if appropriate */
     if(SIP_LV_LOW) {
-		redirected_path = sip_convert_to_redirected_path(redirected_path);
+		// TODO
+		// redirected_path = sip_convert_to_redirected_path(redirected_path);
 	}
 
     _readlinkat = sip_find_sym("readlinkat");
