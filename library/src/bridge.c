@@ -1,12 +1,15 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/uio.h>
+#include <sys/un.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
+#include <stdio.h>
 #include "packet.h"
 #include "logger.h"
+#include "common.h"
 
 static int sockfd = -1;
 
@@ -16,7 +19,7 @@ static int sockfd = -1;
 static void sip_delegate_start() {
 	pid_t pid;
 
-	char args[2] = {SIP_DAEMON_COMMUNICATION_PATH, NULL};
+	char *args[2] = {SIP_DAEMON_COMMUNICATION_PATH, NULL};
 
 	if ((pid = fork()) == 0) {
 		sip_info("Starting delegator with process id %lu\n", pid);
@@ -61,7 +64,7 @@ static int sip_delegate_connect() {
 
 	/* Attempt connection up to 3 times. */
 	do {
-		conn = connect(sockfd, (struct sockaddr*) addr, sizeof(addr));
+		conn = connect(sockfd, (struct sockaddr*) &addr, sizeof(addr));
 		if (conn < 0) {
 			sip_delegate_start();
 		}
@@ -122,17 +125,17 @@ static int sip_delegate_get_response(struct msghdr *request, struct msghdr *resp
  * @param struct msghdr* response
  * @return int
  */
-int sip_delegate_call(long number, struct msghdr *req, struct msghdr *resp) {
+int sip_delegate_call(long number, struct msghdr *request, struct msghdr *response) {
 	/* Attempt delegated call */
-	int resp = sip_delegate_get_response(req, resp);
+	int ret = sip_delegate_get_response(request, response);
 
-	if (resp == -1) {
+	if (ret == -1) {
 		sip_error("Failed to send delegated call: %s\n", strerror(errno));
 		return -1;
 	}
 
 	/* Set response value and errno -- leave it to the caller to extract
 	   any other needed values in the response. */
-	errno = SIP_PKT_GET(resp, 1, int);
-	return SIP_PKT_GET(resp, 0, int);
+	errno = SIP_PKT_GET(response, 1, int);
+	return SIP_PKT_GET(response, 0, int);
 }

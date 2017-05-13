@@ -61,9 +61,16 @@ chmod a+rx ~/sip_daemon
 
 
 #####################################
+## Install daemon (trusted helper) ##
+#####################################
+../daemon/install.sh
+
+
+#####################################
 ## Install glibc wrapper libraries ##
 #####################################
 ../library/install.sh
+
 
 # TODO: determine if/where PiP changes the permissions on world-executables/world-writables
 

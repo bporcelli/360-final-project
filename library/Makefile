@@ -18,7 +18,10 @@ test: $(TSTD)/test.c
 packet_test: $(TSTD)/packet-test.c
 	gcc -I $(CMND)/include -o $(BIND)/ptest $(TSTD)/packet-test.c $(CMND)/packet.c $(CMND)/logger.c
 
-tests: test packet_test
+bridge_test: $(TSTD)/bridge-test.c
+	gcc -I $(CMND)/include -o $(BIND)/btest $(TSTD)/packet-test.c $(SRCD)/bridge.c $(CMND)/packet.c $(CMND)/logger.c
+
+tests: test packet_test bridge_test
 
 all: lib tests
 
