@@ -53,7 +53,6 @@
 #include <errno.h>
 
 #include "thpool.h"      /* here you can also find the interface to each function */
-#include "lwip_debug.h"
 
 static int thpool_keepalive=1;
 
@@ -72,19 +71,16 @@ thpool_t* thpool_init(int threadsN){
 	/* Make new thread pool */
 	tp_p=(thpool_t*)malloc(sizeof(thpool_t));                              /* MALLOC thread pool */
 	if (tp_p==NULL){
-		LWIP_UNEXPECTED("thpool_init(): Could not allocate memory for thread pool\n");
 		return NULL;
 	}
 	tp_p->threads=(pthread_t*)malloc(threadsN*sizeof(pthread_t));          /* MALLOC thread IDs */
 	if (tp_p->threads==NULL){
-		LWIP_UNEXPECTED("thpool_init(): Could not allocate memory for thread IDs\n");
 		return NULL;
 	}
 	tp_p->threadsN=threadsN;
 	
 	/* Initialise the job queue */
 	if (thpool_jobqueue_init(tp_p)==-1){
-		LWIP_UNEXPECTED("thpool_init(): Could not allocate memory for job queue\n");
 		return NULL;
 	}
 	
@@ -95,7 +91,6 @@ thpool_t* thpool_init(int threadsN){
 	/* Make threads in pool */
 	int t;
 	for (t=0; t<threadsN; t++){
-		LWIP_INFO("Created thread %d in pool \n", t);
 		pthread_create(&(tp_p->threads[t]), NULL, (void *)thpool_thread_do, (void *)tp_p); /* MALLOCS INSIDE PTHREAD HERE */
 	}
 	
@@ -112,7 +107,6 @@ void thpool_thread_do(thpool_t* tp_p){
 	while(thpool_keepalive){
 		
 		if (sem_wait(tp_p->jobqueue->queueSem)) {/* WAITING until there is work in the queue */
-			LWIP_UNEXPECTED("thpool_thread_do(): Waiting for semaphore");
 			exit(1);
 		}
 
@@ -150,7 +144,6 @@ int thpool_add_work(thpool_t* tp_p, void *(*function_p)(void*), void* arg_p){
 	
 	newJob=(thpool_job_t*)malloc(sizeof(thpool_job_t));                        /* MALLOC job */
 	if (newJob==NULL){
-		LWIP_UNEXPECTED("thpool_add_work(): Could not allocate memory for new job\n");
 		exit(1);
 	}
 	
@@ -177,13 +170,11 @@ void thpool_destroy(thpool_t* tp_p){
 	/* Awake idle threads waiting at semaphore */
 	for (t=0; t<(tp_p->threadsN); t++){
 		if (sem_post(tp_p->jobqueue->queueSem)){
-			LWIP_UNEXPECTED("thpool_destroy(): Could not bypass sem_wait()\n");
 		}
 	}
 
 	/* Kill semaphore */
 	if (sem_destroy(tp_p->jobqueue->queueSem)!=0){
-		LWIP_UNEXPECTED("thpool_destroy(): Could not destroy semaphore\n");
 	}
 	
 	/* Wait for threads to finish */
