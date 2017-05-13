@@ -1,12 +1,15 @@
+#define _GNU_SOURCE // Needed to expose struct ucred; don't remove
 
 #include <utime.h>
 #include <sys/statfs.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <stdarg.h>
-#include <sys/stat.h>
 #include <errno.h>
 #include <stdlib.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <string.h>
 
 #include "wrappers.h"
 #include "dlhelper.h"
@@ -14,6 +17,7 @@
 #include "logger.h"
 #include "level.h"
 #include "util.h"
+#include "redirect.h"
 
 // TODO: REVISIT ALL WRAPPERS AND ADD SUPPORT FOR FILE REDIRECTION
 
@@ -616,47 +620,52 @@ sip_wrapper(int, openat, int dirfd, const char * __file, int __oflag, ...) {
 }
 
 /**
- * Wrapper for readlink(2). Enforces the following policy:
- *
- * PROCESS LEVEL | ACTION
- * ---------------------------------------------------------------------------
- * Redirect to readlinkat
- * ---------------------------------------------------------------------------
- */
-
-sip_wrapper(ssize_t, readlink, const char *pathname, char *buf, size_t bufsiz) {
-
-    sip_info("Intercepted readlink call with pathname: %s, bufsiz: %lu\n", pathname, bufsiz);
-
-    return readlinkat(AT_FDCWD, pathname, buf, bufsiz);
-}
-
-/**
  * Wrapper for readlinkat(2). Enforces the following policy:
  *
  * PROCESS LEVEL | ACTION
  * ---------------------------------------------------------------------------
- * 
+ * LOW           | Redirect pathname before call if necessary.
+ * ---------------------------------------------------------------------------
+ * ALL           | Convert redirected pathname to original pathname.
  * ---------------------------------------------------------------------------
  */
-
 sip_wrapper(ssize_t, readlinkat, int dirfd, const char *pathname, char *buf, size_t bufsiz) {
 
     sip_info("Intercepted readlinkat call with dirfd: %d, pathname: %s, bufsiz: %lu\n", dirfd, pathname, bufsiz);
 
+    /* To avoid compiler warnings, created a copy of pathname we can modify */
+    char *redirected_path = strdup(pathname);
+
+    if (redirected_path == NULL) {
+    	sip_error("readlinkat aborted: out of memory.\n");
+    	return -1;
+    }
+
+    /* Redirect pathname before call if appropriate */
     if(SIP_LV_LOW) {
-		*pathname = sip_convert_if(pathname); 
+		redirected_path = sip_convert_to_redirected_path(redirected_path);
 	}
 
     _readlinkat = sip_find_sym("readlinkat");
 
-    int res = _readlinkat(dirfd, pathname, buf, bufsiz);
+    int res = _readlinkat(dirfd, redirected_path, buf, bufsiz);
+    
+    free(redirected_path); 	/* clean up after strdup */
 
-    if(sip_is_redirect(buf) == 1) {
-
-    	*buf = sip_revert_path(buf);
+    if(res > 0 && sip_is_redirected(buf)) {
+    	char* orig_path = sip_revert_path(buf);
+    	strncpy(buf, orig_path, bufsiz);
+    	return strlen(orig_path) - 1; 	/* exclude null terminator */
     }
+
     return res;
+}
+
+/**
+ * Wrapper for readlink(2). Redirects to readlinkat.
+ */
+sip_wrapper(ssize_t, readlink, const char *pathname, char *buf, size_t bufsiz) {
+    return readlinkat(AT_FDCWD, pathname, buf, bufsiz);
 }
 
 /**
@@ -904,4 +913,116 @@ sip_wrapper(int, futimens, int fd, const struct timespec times[2]) {
     	sip_info("Would redirect futimens request with descriptor %d.\n", fd);
     }
     return rv;
+}
+
+/**
+ * Wrapper for bind(2). Enforces the following policy: 
+ *
+ * PROCESS LEVEL | ACTION
+ * ---------------------------------------------------------------------------
+ * LOW           | For UNIX domain sockets, delegate if bind request fails with
+ *               | errno EACCES.
+ * ---------------------------------------------------------------------------
+ */
+sip_wrapper(int, bind, int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
+
+    _bind = sip_find_sym("bind");
+
+    int rv = _bind(sockfd, addr, addrlen);
+
+	/* NOTE: AF_LOCAL is equivalent to AF_UNIX, AF_FILE, PF_LOCAL, PF_UNIX,
+	 * and PF_FILE. */
+    if (rv == -1 && errno == EACCES && SIP_IS_LOWI) {
+    	
+    	if (addr->sa_family == AF_LOCAL) {
+			// TODO: FORWARD TO DELEGATOR.
+	    	sip_info("Would redirect bind request with descriptor %d.\n", sockfd);
+	    }
+    }
+ 
+    return rv;
+}
+
+/**
+ * Wrapper for connect(2). Enforces the following policy: 
+ *
+ * PROCESS LEVEL | ACTION
+ * ---------------------------------------------------------------------------
+ * LOW           | For UNIX domain sockets identified by a pathname, delegate 
+ *               | if request fails with errno EACCES.
+ * ---------------------------------------------------------------------------
+ */
+sip_wrapper(int, connect, int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
+
+    _connect = sip_find_sym("connect");
+
+    int rv = _connect(sockfd, addr, addrlen);
+
+    if (rv == -1 && errno == EACCES && SIP_IS_LOWI) {
+    	
+    	if (addr->sa_family == AF_LOCAL && sip_is_named_sock(addr, addrlen)) {
+    		// TODO: FORWARD TO DELEGATOR.
+	    	sip_info("Would redirect connect request with descriptor %d.\n", sockfd);
+    	}
+    }
+
+    return rv;
+}
+
+/**
+ * Wrapper for accept4(2). Enforces the following policy:
+ *
+ * PROCESS LEVEL | ACTION
+ * ---------------------------------------------------------------------------
+ * ALL           | Restrict call if current process is not the daemon and the
+ *               | peer integrity levels don't match.
+ * ---------------------------------------------------------------------------
+ */
+sip_wrapper(int, accept4, int sockfd, struct sockaddr *addr, socklen_t *addrlen, int flags) {
+
+    _accept4 = sip_find_sym("accept4");
+
+    int newfd = _accept4(sockfd, addr, addrlen, flags);
+
+    /* SO_PEERCRED only available for UNIX domain sockets -- don't check
+     * peer creds for sockets with other domains. */
+    if (newfd >= 0 && addr->sa_family == AF_LOCAL) {
+    	
+    	struct ucred peercreds;
+    	socklen_t optlen = sizeof(struct ucred);
+
+    	int getres = getsockopt(newfd, SOL_SOCKET, SO_PEERCRED, 
+    							&peercreds, &optlen);
+
+    	/* If we can't get the peer credentials, deny (safe default). */
+    	if (getres == -1) {
+    		goto deny;
+    	}
+
+    	/* If current process is daemon, allow regardless of the level of the
+    	 * peer. Otherwise, deny if levels don't match. */
+    	int peerlevel = sip_level_min(sip_uid_to_level(peercreds.uid),
+    								  sip_gid_to_level(peercreds.gid));
+
+    	if (sip_is_daemon() || peerlevel == sip_level()) {
+    		goto allow;
+    	}
+
+deny:
+		sip_error("Denying accept4 on socket %d: peer levels do not match.", newfd);
+
+		close(newfd);
+		errno = ECONNABORTED;
+		return -1;
+    }
+
+allow:
+    return newfd;
+}
+
+/**
+ * Wrapper for accept(2). Redirects to accept4(2).
+ */
+sip_wrapper(int, accept, int sockfd, struct sockaddr *addr, socklen_t *addrlen) {
+	return accept4(sockfd, addr, addrlen, 0);
 }
