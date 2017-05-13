@@ -1,14 +1,17 @@
 #define _GNU_SOURCE // Needed to expose struct ucred; don't remove
 
-#include <utime.h>
+#include <sys/ipc.h>
+#include <sys/msg.h>
+#include <sys/shm.h>
+#include <sys/types.h>
+#include <sys/socket.h>
 #include <sys/statfs.h>
 #include <sys/stat.h>
+#include <utime.h>
 #include <fcntl.h>
 #include <stdarg.h>
 #include <errno.h>
 #include <stdlib.h>
-#include <sys/types.h>
-#include <sys/socket.h>
 #include <string.h>
 
 #include "wrappers.h"
@@ -1025,4 +1028,80 @@ allow:
  */
 sip_wrapper(int, accept, int sockfd, struct sockaddr *addr, socklen_t *addrlen) {
 	return accept4(sockfd, addr, addrlen, 0);
+}
+
+/**
+ * Wrapper for msgget(2). Enforces the following policy:
+ *
+ * PROCESS LEVEL | ACTION
+ * ---------------------------------------------------------------------------
+ * ALL           | Restrict if integrity level of current process and message
+ *               | queue creator differ.
+ * ---------------------------------------------------------------------------
+ */
+sip_wrapper(int, msgget, key_t key, int msgflg) {
+	_msgget = sip_find_sym("msgget");
+
+	int msgid = _msgget(key, msgflg);
+
+	if (msgid >= 0) {
+		struct msqid_ds msq;
+
+		int statres = msgctl(msgid, IPC_STAT, &msq);
+
+		if (statres == -1) {
+			sip_info("Denying msgget request: failed to get peer credentials.\n");
+			errno = EACCES;
+			return -1;
+		}
+
+		int ulevel = sip_uid_to_level(msq.msg_perm.cuid);
+		int glevel = sip_gid_to_level(msq.msg_perm.cgid);
+
+		if (sip_level() != sip_level_min(ulevel, glevel)) {
+			sip_info("Denying msgget request: peer integrity levels don't match.\n");
+			errno = EACCES;
+			return -1;
+		}
+	}
+
+	return msgid;
+}
+
+/**
+ * Wrapper for shmget(2). Enforces the following policy:
+ *
+ * PROCESS LEVEL | ACTION
+ * ---------------------------------------------------------------------------
+ * ALL           | Restrict if integrity level of current process and message
+ *               | queue creator differ.
+ * ---------------------------------------------------------------------------
+ */
+sip_wrapper(int, shmget, key_t key, size_t size, int shmflg) {
+	_shmget = sip_find_sym("shmget");
+
+	int shmid = _shmget(key, size, shmflg);
+
+	if (shmid >= 0) {
+		struct shmid_ds shm;
+
+		int statres = shmctl(shmid, IPC_STAT, &shm);
+
+		if (statres == -1) {
+			sip_info("Denying shmget request: failed to get peer credentials.\n");
+			errno = EACCES;
+			return -1;
+		}
+
+		int ulevel = sip_uid_to_level(shm.shm_perm.cuid);
+		int glevel = sip_gid_to_level(shm.shm_perm.cgid);
+
+		if (sip_level() != sip_level_min(ulevel, glevel)) {
+			sip_info("Denying shmget request: peer integrity levels don't match.\n");
+			errno = EACCES;
+			return -1;
+		}
+	}
+
+	return shmid;
 }
