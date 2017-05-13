@@ -7,43 +7,58 @@
 #include <grp.h>
 #include <errno.h>
 #include <string.h>
+#include <pthread.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/param.h>
 #include <sys/un.h>
 
-// From delegator.h
-#include <pthread.h>
-
-
-#include "common.h" // Generated from template
-#include "thpool.h"	// Thread pool
-#include "logger.h" // Logging
+#include "common.h"   // Generated from template
+#include "logger.h"   // Logging
+#include "packet.h"   // Packet manipulation methods
+#include "handlers.h" // Syscall handlers
 
 #define DAEMON_MAX_CONNECTION 1000
-struct Thread {
-	pthread_t tid;
-	int no_clients;
-	int newfd;
-}threads[DAEMON_MAX_CONNECTION];
 
 static int exit_flag = 0;
 
-/*
- * Handles a request from an untrusted process
+/**
+ * Handles a request from an untrusted process.
+ *
+ * @param void* pointer to client socket descriptor.
  */
-void handle_request(int newfd) {
+void handle_connection(void* arg) {
+	struct msghdr msg;
+	ssize_t received = 0;
+	int clientfd = *(int*) arg;
+	free(arg);
 
+	while ((received = recvmsg(clientfd, &msg, 0)) > 0) {
+		/* To hold response. */
+		struct msghdr response;
+
+		/* First arg in packet will be syscall num. */
+		long callnum = SIP_PKT_GET(&msg, 0, long);
+
+		switch (callnum) {
+			case SYS_delegatortest:
+				handle_delegatortest(&msg, &response);
+				if (response != NULL ) {
+
+				}
+			break;
+			default:
+				sip_error("Unhandled delegated syscall: %d\n", callnum);
+		}
+	}
 }
-
 
 int main(int argc, char **argv) {
 
-	// TODO: SET PERMS ON SIP_DAEMON_COMMUNICATION_PATH SUCH THAT
-	// ONLY BENIGN USER AND UNTRUSTED USER CAN RWX
 	struct sockaddr_un addr;
-	int addrlen, listenfd, clientfd;
+
+	int addrlen, listenfd, clientfd, *fdcopy;
 
 	/* Set real, effective, and saved GID/UID. NOTE: the effective GID
 	   is set to SIP_UNTRUSTED_USERID so new files are automatically
@@ -82,15 +97,13 @@ int main(int argc, char **argv) {
 
 	/* Wait for new connections in an infinite loop. When a connection arrives,
 	   spawn a thread to handle it. */
-	while (true) {
+	while (!exit_flag) {
 		clientfd = accept(listenfd, NULL, NULL);
 		
 		if (clientfd < 0) {
 			sip_error("Accept failed: %s. Aborting.\n", strerror(errno));
 			exit(1);
 		}
-
-		sip_info("Server accepted FD: %d", clientfd);
 
 		// TODO: NEED TO DO THIS? I THINK WE CAN HANDLE THIS PERMS ON COM PATH.
 		// Right now, this function just does logging... but it could:
@@ -99,8 +112,13 @@ int main(int argc, char **argv) {
 			// This would confirm that the peer process is running with the untrusted userid
 		// 			is_connection_valid(newfd,&uid,&gid); 
 
-		// TODO: CREATE THREAD TO HANDLE CONNECTION; DETACH
-		// pthread_create(&server_thread, NULL, &start_server, (void*)argv[1]);
+		if ((fdcopy = malloc(sizeof(int))) == NULL) {
+			sip_error("Couldn't accept connection: out of memory.\n");
+			continue; /* maybe some memory will free up? */
+		}
+		*fdcopy = clientfd;
+		
+		pthread_create(NULL, NULL, &handle_connection, fdcopy);
 	}
 
 	return 0;
