@@ -125,9 +125,6 @@ void *handle_connection(void* arg) {
 			case SYS_utimensat:
 				// TODO
 			break;
-			case SYS_futimens:
-				// TODO
-			break;
 			case SYS_bind:
 				// TODO
 			break;

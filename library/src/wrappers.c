@@ -14,6 +14,8 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
+#include <unistd.h>
 
 #include "wrappers.h"
 #include "dlhelper.h"
@@ -58,9 +60,23 @@ sip_wrapper(int, faccessat, int dirfd, const char *pathname, int mode, int flags
 	int rv = _faccessat(dirfd, pathname, mode, flags);
 
 	if (rv == -1 && errno == EACCES && SIP_IS_LOWI) {
-		// TODO: SEND REQUEST TO DELEGATOR. UPDATE ERRNO/RV ON RESPONSE.
-		// HOW TO DO THIS WITHOUT COPYING THE PIP SOLUTION ONE-FOR-ONE...?
-		sip_info("Would delegate faccessat on %s\n", pathname);
+
+		sip_info("Delegating faccessat on %s\n", pathname);
+
+		pathname = sip_abs_path(dirfd, pathname); /* to avoid passing dirfd to helper */
+
+		SIP_PREPARE_REQ(faccessat, request);
+		
+		strncpy(request.pathname, pathname, PATH_MAX);
+		request.mode = mode;
+		request.flags = flags;
+
+		SIP_PREPARE_RES(response);		
+		
+		if (sip_delegate_call(&request, &response) == 0) {
+			rv = response.rv;
+			errno = response.err;
+		}
 	}
 	return rv;
 }
@@ -96,9 +112,23 @@ sip_wrapper(int, fchmodat, int dirfd, const char *pathname, mode_t mode, int fla
 	int rv = _fchmodat(dirfd, pathname, mode, flags);
 
 	if (rv == -1 && (errno == EACCES || errno == EPERM) && SIP_IS_LOWI) {
-		// TODO: SEND REQUEST TO DELEGATOR. UPDATE ERRNO/RV ON RESPONSE.
-		sip_info("Would delegate fchmodat on %s\n", pathname);
+
+		sip_info("Delegating fchmodat on %s\n", pathname);
+
+		pathname = sip_abs_path(dirfd, pathname); /* to avoid passing dirfd to helper */
+
+		SIP_PREPARE_REQ(fchmodat, request);
+		SIP_PREPARE_RES(response);
+		strncpy(request.pathname, pathname, PATH_MAX);
+		request.mode = mode;
+		request.flags = flags;
+		
+		if (sip_delegate_call(&request, &response) == 0) {
+			rv = response.rv;
+			errno = response.err;
+		}
 	}
+
 	return rv;
 }
 
@@ -159,8 +189,22 @@ sip_wrapper(int, fchownat, int dirfd, const char *pathname, uid_t owner, gid_t g
 	int rv = _fchownat(dirfd, pathname, owner, group, flags);
 
 	if (rv == -1 && (errno == EACCES || errno == EPERM) && SIP_IS_LOWI) {
-		// TODO: SEND REQUEST TO DELEGATOR. UPDATE ERRNO/RV ON RESPONSE.
-		sip_info("Would delegate fchownat on %s\n", pathname);
+		
+		sip_info("Delegating fchownat on %s\n", pathname);
+
+		pathname = sip_abs_path(dirfd, pathname); /* to avoid passing dirfd to helper */
+
+		SIP_PREPARE_REQ(fchownat, request);
+		SIP_PREPARE_RES(response);
+		strncpy(request.pathname, pathname, PATH_MAX);
+		request.owner = owner;
+		request.group = group;
+		request.flags = flags;
+		
+		if (sip_delegate_call(&request, &response) == 0) {
+			rv = response.rv;
+			errno = response.err;
+		}
 	}
 	return rv;
 }
@@ -365,7 +409,6 @@ sip_wrapper(int, execve, const char *filename, char *const argv[], char *const e
  *
  * NOTE: __fxstatat is the name libc uses internally for fstatat.
  */
-
 sip_wrapper(int, __fxstatat, int ver, int dirfd, const char *pathname, struct stat *statbuf, int flags) {
 
 	sip_info("Intercepted fstatat call with dirfd: %d, path: %s, flags: %d\n", dirfd, pathname, flags);
@@ -380,9 +423,26 @@ sip_wrapper(int, __fxstatat, int ver, int dirfd, const char *pathname, struct st
 	int rv = ___fxstatat(ver, dirfd, pathname, statbuf, flags);
 
 	if (rv == -1 && errno == EACCES && SIP_IS_LOWI) {
-		// TODO: FORWARD REQUEST TO DELEGATOR.
-		sip_info("Would forward __fxstatat request with pathname %s\n", pathname);
+
+		sip_info("Delegating __fxstatat on %s\n", pathname);
+
+		pathname = sip_abs_path(dirfd, pathname); /* to avoid passing dirfd to helper */
+
+		SIP_PREPARE_REQ(fstatat, request);
+		SIP_PREPARE_RES(response);
+		strncpy(request.pathname, pathname, PATH_MAX);
+		request.flags = flags;
+		
+		if (sip_delegate_call(&request, &response) == 0) {
+			rv = response.rv;
+			errno = response.err;
+
+			if (rv >= 0) { /* stat buf will be in response.buf */
+				memcpy(statbuf, response.buf, sizeof(struct stat));
+			}
+		}
 	}
+
 	return rv;
 }
 
@@ -441,8 +501,23 @@ sip_wrapper(int, statvfs, const char *path, struct statvfs *buf) {
     int res = _statvfs(path, buf);
 
 	if (res == -1 && errno == EACCES && SIP_IS_LOWI) {
-		// TODO: FORWARD REQUEST TO DELEGATOR.
-		sip_info("Would forward statvfs request with path %s\n", path);
+		
+		sip_info("Delegating statvfs on %s\n", path);
+
+		path = sip_abs_path(AT_FDCWD, path); /* handle relative paths */
+
+		SIP_PREPARE_REQ(statvfs, request);
+		SIP_PREPARE_RES(response);
+		strncpy(request.path, path, PATH_MAX);
+		
+		if (sip_delegate_call(&request, &response) == 0) {
+			res = response.rv;
+			errno = response.err;
+
+			if (res >= 0) { /* statvfs buf will be in response.buf */
+				memcpy(buf, response.buf, sizeof(struct statvfs));
+			}
+		}
 	}
 
 	return res;
@@ -491,9 +566,23 @@ sip_wrapper(int, linkat, int olddirfd, const char *oldpath, int newdirfd, const 
 	int res = _linkat(olddirfd, oldpath, newdirfd, newpath, flags);
 
 	if(res == -1 && errno == EACCES && SIP_IS_LOWI) {
-		// TODO: SEND REQUEST TO DELEGATOR. UPDATE ERRNO/RV ON RESPONSE.
-		// HOW TO DO THIS WITHOUT COPYING THE PIP SOLUTION ONE-FOR-ONE...?
-		sip_info("Would delegate linkat on %s\n", olddirfd);
+		
+		sip_info("Delegating linkat with oldpath %s, newpath %s\n", oldpath, newpath);
+
+		/* convert paths to abs. paths to avoid passing dirfds */
+		oldpath = sip_abs_path(olddirfd, oldpath);
+		newpath = sip_abs_path(newdirfd, newpath);
+
+		SIP_PREPARE_REQ(linkat, request);
+		SIP_PREPARE_RES(response);
+		strncpy(request.oldpath, oldpath, PATH_MAX);
+		strncpy(request.newpath, newpath, PATH_MAX);
+		request.flags = flags;
+		
+		if (sip_delegate_call(&request, &response) == 0) {
+			res = response.rv;
+			errno = response.err;	
+		}
 	}
 
 	return res;
@@ -533,9 +622,22 @@ sip_wrapper(int, mkdirat, int dirfd, const char *pathname, mode_t mode) {
 	int rv = _mkdirat(dirfd, pathname, mode);
 
 	if (rv == -1 && errno == EACCES && SIP_IS_LOWI) {
-		// TODO: DELEGATE REQUEST
-		sip_info("Would delegate mkdirat request with pathname %s\n", pathname);
+		
+		sip_info("Delegating mkdirat with path %s\n", pathname);
+
+		pathname = sip_abs_path(dirfd, pathname); /* handle relative paths */
+
+		SIP_PREPARE_REQ(mkdirat, request);
+		SIP_PREPARE_RES(response);
+		strncpy(request.pathname, pathname, PATH_MAX);
+		request.mode = mode;
+		
+		if (sip_delegate_call(&request, &response) == 0) {
+			rv = response.rv;
+			errno = response.err;	
+		}
 	}
+
 	return rv;
 }
 
@@ -573,9 +675,27 @@ sip_wrapper(int, __xmknodat, int ver, int dirfd, const char *pathname, mode_t mo
 	int rv = ___xmknodat(ver, dirfd, pathname, mode, dev);
 
 	if (rv == -1 && (errno == EACCES || errno == EPERM) && SIP_IS_LOWI) {
-		// TODO: DELEGATE TO HELPER AND UPDATE RV/ERRNO ACCORDINGLY
-		sip_info("Would delegate __xmknodat request with pathname %s to helper.\n", pathname);
+		
+		sip_info("Delegating __xmknodat with path %s\n", pathname);
+
+		pathname = sip_abs_path(dirfd, pathname); /* handle relative paths */
+
+		SIP_PREPARE_REQ(mknodat, request);
+		SIP_PREPARE_RES(response);
+		strncpy(request.pathname, pathname, PATH_MAX);
+		request.mode = mode;
+
+		/* dev parameter only used when type is S_IFCHR or S_IFBLK */
+		if ((mode & S_IFCHR) || (mode & S_IFBLK)) {
+			memcpy(&request.dev, dev, sizeof(dev_t));
+		}
+		
+		if (sip_delegate_call(&request, &response) == 0) {
+			rv = response.rv;
+			errno = response.err;	
+		}
 	}
+
 	return rv;
 }
 
@@ -669,8 +789,13 @@ sip_wrapper(int, openat, int dirfd, const char * __file, int __oflag, ...) {
 
 		__file = sip_abs_path(dirfd, __file); /* to avoid passing dirfd to helper */
 
-		SIP_PREPARE_RESP(response);
-		SIP_PREPARE_PKT(openat, request);
+		SIP_PREPARE_REQ(openat, request);
+		
+		strncpy(request.file, __file, PATH_MAX);
+		request.mode = mode;
+		request.flags = __oflag;
+
+		SIP_PREPARE_RES(response);
 
 		if (sip_delegate_call_fd(&request, &response) == 0) {
 			res = response.rv;
@@ -735,12 +860,12 @@ sip_wrapper(ssize_t, readlink, const char *pathname, char *buf, size_t bufsiz) {
  *
  * PROCESS LEVEL | ACTION
  * ---------------------------------------------------------------------------
- * 
+ * LOW           | Delegate to helper if request fails due to permissions.
  * ---------------------------------------------------------------------------
  */
 sip_wrapper(int, renameat2, int olddirfd, const char *oldpath, int newdirfd, const char *newpath, unsigned int flags) {
 
-    sip_info("Intercepted renameatat2 call with olddirfd: %s, oldpath: %s, newdirfd: %d, newpath: %s, flags: %d\n", 
+    sip_info("Intercepted renameat2 call with olddirfd: %s, oldpath: %s, newdirfd: %d, newpath: %s, flags: %d\n", 
     	olddirfd, oldpath, newdirfd, newpath, flags);
 
 	_renameat2 = sip_find_sym("renameat2");
@@ -748,9 +873,23 @@ sip_wrapper(int, renameat2, int olddirfd, const char *oldpath, int newdirfd, con
 	int res = _renameat2(olddirfd, oldpath, newdirfd, newpath, flags);
 
 	if(res == -1 && errno == EACCES && SIP_IS_LOWI) {
-		// TODO: SEND REQUEST TO DELEGATOR. UPDATE ERRNO/RV ON RESPONSE.
-		// HOW TO DO THIS WITHOUT COPYING THE PIP SOLUTION ONE-FOR-ONE...?
-		sip_info("Would delegate renameat on %s\n", olddirfd);
+		
+		sip_info("Delegating renameat2 with oldpath %s, newpath %s\n", oldpath, newpath);
+
+		/* convert paths to abs. paths to avoid passing dir fds */
+		oldpath = sip_abs_path(olddirfd, oldpath);
+		newpath = sip_abs_path(newdirfd, newpath);
+
+		SIP_PREPARE_REQ(renameat2, request);
+		SIP_PREPARE_RES(response);
+		strncpy(request.oldpath, oldpath, PATH_MAX);
+		strncpy(request.newpath, newpath, PATH_MAX);
+		request.flags = flags;
+		
+		if (sip_delegate_call(&request, &response) == 0) {
+			res = response.rv;
+			errno = response.err;	
+		}
 	}
 
 	return res;
@@ -824,9 +963,20 @@ sip_wrapper(int, symlinkat, const char *target, int newdirfd, const char *linkpa
     int res = _symlinkat(target, newdirfd, linkpath);
 
     if (res == -1 && errno == EACCES && SIP_IS_LOWI) {
-		// TODO: SEND REQUEST TO DELEGATOR. UPDATE ERRNO/RV ON RESPONSE.
-		// HOW TO DO THIS WITHOUT COPYING THE PIP SOLUTION ONE-FOR-ONE...?
-		sip_info("Would delegate linkat on %s\n", target);
+		
+		sip_info("Delegating symlinkat with target %s, linkpath %s\n", target, linkpath);
+
+		linkpath = sip_abs_path(newdirfd, linkpath); /* handle rel. paths */
+
+		SIP_PREPARE_REQ(symlinkat, request);
+		SIP_PREPARE_RES(response);
+		strncpy(request.target, target, PATH_MAX);
+		strncpy(request.linkpath, linkpath, PATH_MAX);
+		
+		if (sip_delegate_call(&request, &response) == 0) {
+			res = response.rv;
+			errno = response.err;	
+		}
 	}
 
     return res;
@@ -852,7 +1002,8 @@ sip_wrapper(int, symlink, const char *target, const char *linkpath) {
  * High 		 | Send original pathname
  * ---------------------------------------------------------------------------
  * Low 			 | Alter the pathname so it points to the correct file in the 
- * 				 | /tmp/ folder.
+ * 				 | /tmp/ folder. If request fails due to lack of permissions,
+ *               | delegate.
  * ---------------------------------------------------------------------------
  */
 sip_wrapper(int, unlinkat, int dirfd, const char *pathname, int flags) {
@@ -865,7 +1016,26 @@ sip_wrapper(int, unlinkat, int dirfd, const char *pathname, int flags) {
 
     _unlinkat = sip_find_sym("unlinkat");
 
-    return _unlinkat(dirfd, pathname, flags);;
+    int res = _unlinkat(dirfd, pathname, flags);
+
+    if (res == -1 && (errno == EACCES || errno == EPERM) && SIP_IS_LOWI) {
+
+		sip_info("Delegating unlinkat with pathname %s\n", pathname);
+
+		pathname = sip_abs_path(dirfd, pathname); /* handle rel. paths */
+
+		SIP_PREPARE_REQ(unlinkat, request);
+		SIP_PREPARE_RES(response);
+		strncpy(request.pathname, pathname, PATH_MAX);
+		request.flags = flags;
+		
+		if (sip_delegate_call(&request, &response) == 0) {
+			res = response.rv;
+			errno = response.err;	
+		}
+    }
+
+    return res;
 }
 
 /**
@@ -902,9 +1072,22 @@ sip_wrapper(int, utime, const char *path, const struct utimbuf *times) {
     int rv = _utime(path, times);
 
     if (rv == -1 && (errno == EACCES || errno == EPERM) && SIP_IS_LOWI) {
-    	// TODO: FORWARD TO DELEGATOR.
-    	sip_info("Would redirect utime request with path %s.\n", path);
+    	
+    	sip_info("Delegating utime with path %s\n", path);
+
+		path = sip_abs_path(AT_FDCWD, path); /* handle rel. paths */
+
+		SIP_PREPARE_REQ(utime, request);
+		SIP_PREPARE_RES(response);
+		strncpy(request.path, path, PATH_MAX);
+		memcpy(&request.times, times, sizeof(struct utimbuf));
+		
+		if (sip_delegate_call(&request, &response) == 0) {
+			rv = response.rv;
+			errno = response.err;	
+		}
     }
+
     return rv;
 }
 
@@ -930,9 +1113,22 @@ sip_wrapper(int, utimes, const char *filename, const struct timeval times[2]) {
     int rv = _utimes(filename, times);
 
     if (rv == -1 && (errno == EACCES || errno == EPERM) && SIP_IS_LOWI) {
-    	// TODO: FORWARD TO DELEGATOR.
-    	sip_info("Would redirect utimes request with path %s.\n", filename);
+    	
+    	sip_info("Delegating utimes with filename %s\n", filename);
+
+		filename = sip_abs_path(AT_FDCWD, filename); /* handle rel. paths */
+
+		SIP_PREPARE_REQ(utimes, request);
+		SIP_PREPARE_RES(response);
+		strncpy(request.filename, filename, PATH_MAX);
+		memcpy(&request.times, times, 2 * sizeof(struct timeval));
+		
+		if (sip_delegate_call(&request, &response) == 0) {
+			rv = response.rv;
+			errno = response.err;	
+		}
     }
+
     return rv;
 }
 
@@ -950,7 +1146,7 @@ sip_wrapper(int, utimensat, int dirfd, const char *pathname, const struct timesp
 
 	if (SIP_IS_LOWI) {
 		// TODO: REDIRECT IF NECESSARY. SOMETHING LIKE
-		// *path = sip_get_redirected_path(filename);
+		// pathname = sip_get_redirected_path(pathname);
 	}
 
     _utimensat = sip_find_sym("utimensat");
@@ -958,9 +1154,23 @@ sip_wrapper(int, utimensat, int dirfd, const char *pathname, const struct timesp
     int rv = _utimensat(dirfd, pathname, times, flags);
 
     if (rv == -1 && (errno == EACCES || errno == EPERM) && SIP_IS_LOWI) {
-    	// TODO: FORWARD TO DELEGATOR.
-    	sip_info("Would redirect utimensat request with path %s.\n", pathname);
+    	
+    	sip_info("Delegating utimensat with pathname %s\n", pathname);
+
+		pathname = sip_abs_path(dirfd, pathname); /* handle rel. paths */
+
+		SIP_PREPARE_REQ(utimensat, request);
+		SIP_PREPARE_RES(response);
+		strncpy(request.pathname, pathname, PATH_MAX);
+		memcpy(&request.times, times, 2 * sizeof(struct timespec));
+		request.flags = flags;
+		
+		if (sip_delegate_call(&request, &response) == 0) {
+			rv = response.rv;
+			errno = response.err;	
+		}
     }
+
     return rv;
 }
 
@@ -986,9 +1196,31 @@ sip_wrapper(int, futimens, int fd, const struct timespec times[2]) {
     int rv = _futimens(fd, times);
 
     if (rv == -1 && (errno == EACCES || errno == EPERM) && SIP_IS_LOWI) {
-    	// TODO: FORWARD TO DELEGATOR.
-    	sip_info("Would redirect futimens request with descriptor %d.\n", fd);
+    	
+    	sip_info("Delegating futimens with descriptor %d\n", fd);
+
+    	/* NOTE: glibc uses utimensat internally to implement this call.
+    	   We convert to an equivalent utimensat call here so as to avoid
+    	   passing the fd to the helper. */
+    	char* pathname = sip_fd_to_path(fd);
+
+    	if (pathname != NULL) {
+    		
+    		SIP_PREPARE_REQ(utimensat, request);
+			SIP_PREPARE_RES(response);
+			strncpy(request.pathname, pathname, PATH_MAX);
+			memcpy(&request.times, times, 2 * sizeof(struct timespec));
+			request.flags = 0;
+			
+			if (sip_delegate_call(&request, &response) == 0) {
+				rv = response.rv;
+				errno = response.err;	
+			}
+
+    		free(pathname);
+    	}
     }
+
     return rv;
 }
 
@@ -1007,13 +1239,30 @@ sip_wrapper(int, bind, int sockfd, const struct sockaddr *addr, socklen_t addrle
 
     int rv = _bind(sockfd, addr, addrlen);
 
-	/* NOTE: AF_LOCAL is equivalent to AF_UNIX, AF_FILE, PF_LOCAL, PF_UNIX,
-	 * and PF_FILE. */
     if (rv == -1 && errno == EACCES && SIP_IS_LOWI) {
     	
-    	if (addr->sa_family == AF_LOCAL) {
-			// TODO: FORWARD TO DELEGATOR.
-	    	sip_info("Would redirect bind request with descriptor %d.\n", sockfd);
+    	if (addr->sa_family == AF_LOCAL) { /* AF_LOCAL = AF_UNIX = PF_LOCAL... */
+			
+			sip_info("Delegating bind with sockfd %s\n", sockfd);
+
+			/* NOTE: the sockfd is not passed to the helper. It is expected that
+			   the helper creates a new socket, binds it to the given address,
+			   and returns the descriptor for the new socket. */
+			SIP_PREPARE_REQ(bind, request);
+			SIP_PREPARE_RES(response);
+			memcpy(&request.addr, addr, sizeof(struct sockaddr));
+			request.addrlen = addrlen;
+			
+			if (sip_delegate_call_fd(&request, &response) == 0) {
+				rv = response.rv;
+				errno = response.err;
+
+				if (rv >= 0) { /* copy newsockfd to sockfd, close newsockfd */
+					dup2(rv, sockfd);
+					close(rv);
+					rv = 0;
+				}
+			}
 	    }
     }
  
@@ -1038,8 +1287,27 @@ sip_wrapper(int, connect, int sockfd, const struct sockaddr *addr, socklen_t add
     if (rv == -1 && errno == EACCES && SIP_IS_LOWI) {
     	
     	if (addr->sa_family == AF_LOCAL && sip_is_named_sock(addr, addrlen)) {
-    		// TODO: FORWARD TO DELEGATOR.
-	    	sip_info("Would redirect connect request with descriptor %d.\n", sockfd);
+    		
+    		sip_info("Delegating connect with sockfd %s\n", sockfd);
+
+			/* NOTE: the sockfd is not passed to the helper. It is expected that
+			   the helper creates a new socket, connects it to the given address,
+			   and returns the descriptor for the new socket. */
+			SIP_PREPARE_REQ(connect, request);
+			SIP_PREPARE_RES(response);
+			memcpy(&request.addr, addr, sizeof(struct sockaddr));
+			request.addrlen = addrlen;
+			
+			if (sip_delegate_call_fd(&request, &response) == 0) {
+				rv = response.rv;
+				errno = response.err;
+
+				if (rv >= 0) { /* copy newsockfd to sockfd, close newsockfd */
+					dup2(rv, sockfd);
+					close(rv);
+					rv = 0;
+				}
+			}
     	}
     }
 
