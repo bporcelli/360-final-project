@@ -66,6 +66,7 @@ void handle_fchownat(struct sip_request_fchownat *request, struct sip_response *
  */
 void handle_fstatat(struct sip_request_fstatat *request, struct sip_response *response) {
 	// TODO
+	
 }
 
 /**
