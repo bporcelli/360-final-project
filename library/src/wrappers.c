@@ -27,7 +27,7 @@
 #include "bridge.h"
 #include "packets.h"
 
-// TODO: REVISIT ALL WRAPPERS AND ADD SUPPORT FOR FILE REDIRECTION
+// TODO: POSSIBLY ENABLE REDIRECTION IF WE HAVE TIME TO TEST
 
 /**
  * Wrapper for faccessat(2). Enforces the following policy:
@@ -43,47 +43,44 @@ sip_wrapper(int, faccessat, int dirfd, const char *pathname, int mode, int flags
 
 	sip_info("Intercepted faccessat call with dirfd: %d, path: %s, mode: %d, flags: %d\n", dirfd, pathname, mode, flags);
 
-	/* TODO: To avoid compiler warnings, created a copy of pathname we can modify */
- 	//  char *redirected_path = strdup(pathname);
+ 	char *redirected_path = strdup(pathname), *temp_path;
 
- 	//  if (redirected_path == NULL) {
- 	//  	sip_error("readlinkat aborted: out of memory.\n");
- 	//    	return -1;
- 	//  }
+ 	if (redirected_path == NULL) {
+ 		sip_error("faccessat aborted: out of memory.\n");
+ 	   	return -1;
+ 	}
 
- 	//  /* Redirect pathname before call if appropriate */
-    //  if(SIP_LV_LOW) {
-    	
+ 	/* Redirect pathname before call if appropriate */
+ 	// if(SIP_LV_LOW) {
 	// 		redirected_path = sip_convert_to_redirected_path(redirected_path);
-	// 	}
+	// }
 
 	if (SIP_IS_HIGHI) {
-
 		int read_or_exec = (mode & R_OK) || (mode & X_OK);
 
-		if (SIP_LV_LOW == sip_path_to_level(pathname) && read_or_exec) {
+		if (SIP_LV_LOW == sip_path_to_level(redirected_path) && read_or_exec) {
 
-			sip_info("Denied read/exec permissions on low integrity file %s\n", pathname);
+			sip_info("Denied read/exec permissions on low integrity file %s\n", redirected_path);
 			errno = EACCES;
 			return -1;
 		}
 	}
 
+	_faccessat = sip_find_sym("faccessat");
 
-	__faccessat = sip_find_sym("faccessat");
-
-	/* TODO: change pathname to redirected_path */
-	int rv = __faccessat(dirfd, pathname, mode, flags);
+	int rv = _faccessat(dirfd, redirected_path, mode, flags);
 
 	if (rv == -1 && errno == EACCES && SIP_IS_LOWI) {
 
-		sip_info("Delegating faccessat on %s\n", pathname);
+		sip_info("Delegating faccessat on %s\n", redirected_path);
 
-		pathname = sip_abs_path(dirfd, pathname); /* to avoid passing dirfd to helper */
+		temp_path = redirected_path;
+		redirected_path = sip_abs_path(dirfd, redirected_path); /* to avoid passing dirfd to helper */
+		free(temp_path);
 
 		SIP_PREPARE_REQ(faccessat, request);
 		
-		strncpy(request.pathname, pathname, PATH_MAX);
+		strncpy(request.pathname, redirected_path, PATH_MAX);
 		request.mode = mode;
 		request.flags = flags;
 
@@ -93,14 +90,10 @@ sip_wrapper(int, faccessat, int dirfd, const char *pathname, int mode, int flags
 			rv = response.rv;
 			errno = response.err;
 		}
+
+		free(redirected_path);
 	}
 
-	// TODO: if(rv > 0 && sip_is_redirected(pathname)) {
- 	// 		char* orig_path = sip_revert_path(pathname);
- 	// 	   	strcpy(pathname, orig_path);
- 	// 	   	return strlen(orig_path) - 1; 	/* exclude null terminator */
- 	// 	}
- 	//free(redirected_path);
 	return rv;
 }
 
@@ -130,34 +123,33 @@ sip_wrapper(int, fchmodat, int dirfd, const char *pathname, mode_t mode, int fla
 
 	sip_info("Intercepted fchmodat call with dirfd: %d, path: %s, mode: %d, flags: %d\n", dirfd, pathname, mode, flags);
 
-	/* TODO: To avoid compiler warnings, created a copy of pathname we can modify */
- 	//  char *redirected_path = strdup(pathname);
+ 	char *redirected_path = strdup(pathname), *temp_path;
 
- 	//  if (redirected_path == NULL) {
- 	//  	sip_error("readlinkat aborted: out of memory.\n");
- 	//    	return -1;
- 	//  }
+ 	if (redirected_path == NULL) {
+ 		sip_error("fchmodat aborted: out of memory.\n");
+ 	   	return -1;
+ 	}
 
- 	//  /* Redirect pathname before call if appropriate */
-    //  if(SIP_LV_LOW) {
-    	
-	// 		redirected_path = sip_convert_to_redirected_path(redirected_path);
-	// 	}
+ 	/* Redirect pathname before call if appropriate */
+	// if (SIP_LV_LOW) {
+ 	// 		redirected_path = sip_convert_to_redirected_path(redirected_path);
+	// }
 
-	__fchmodat = sip_find_sym("fchmodat");
+	_fchmodat = sip_find_sym("fchmodat");
 	
-	/* TODO: change pathname to redirected_path */
-	int rv = __fchmodat(dirfd, pathname, mode, flags);
+	int rv = _fchmodat(dirfd, redirected_path, mode, flags);
 
 	if (rv == -1 && (errno == EACCES || errno == EPERM) && SIP_IS_LOWI) {
 
-		sip_info("Delegating fchmodat on %s\n", pathname);
+		sip_info("Delegating fchmodat on %s\n", redirected_path);
 
-		pathname = sip_abs_path(dirfd, pathname); /* to avoid passing dirfd to helper */
+		temp_path = redirected_path;
+		redirected_path = sip_abs_path(dirfd, redirected_path); /* to avoid passing dirfd to helper */
+		free(temp_path);
 
 		SIP_PREPARE_REQ(fchmodat, request);
 		SIP_PREPARE_RES(response);
-		strncpy(request.pathname, pathname, PATH_MAX);
+		strncpy(request.pathname, redirected_path, PATH_MAX);
 		request.mode = mode;
 		request.flags = flags;
 		
@@ -165,17 +157,10 @@ sip_wrapper(int, fchmodat, int dirfd, const char *pathname, mode_t mode, int fla
 			rv = response.rv;
 			errno = response.err;
 		}
+
+		free(redirected_path);
 	}
 
-<<<<<<< HEAD
-	// TODO: if(rv > 0 && sip_is_redirected(pathname)) {
- 	// 		char* orig_path = sip_revert_path(pathname);
- 	// 	   	strcpy(pathname, orig_path);
- 	// 	   	return strlen(orig_path) - 1; 	/* exclude null terminator */
- 	// 	}
- 	//free(redirected_path);
-=======
->>>>>>> 40ca7dfb16e8b18d7661108af6346c93c4507ce1
 	return rv;
 }
 
@@ -232,34 +217,33 @@ sip_wrapper(int, fchownat, int dirfd, const char *pathname, uid_t owner, gid_t g
 		return -1;
 	}
 
-	/* TODO: To avoid compiler warnings, created a copy of pathname we can modify */
- 	//  char *redirected_path = strdup(pathname);
+ 	char *redirected_path = strdup(pathname), *temp_path;
 
- 	//  if (redirected_path == NULL) {
- 	//  	sip_error("readlinkat aborted: out of memory.\n");
- 	//    	return -1;
- 	//  }
+ 	if (redirected_path == NULL) {
+ 		sip_error("fchownat aborted: out of memory.\n");
+ 	   	return -1;
+ 	}
 
- 	//  /* Redirect pathname before call if appropriate */
+ 	/* Redirect pathname before call if appropriate */
     //  if(SIP_LV_LOW) {
-    	
 	// 		redirected_path = sip_convert_to_redirected_path(redirected_path);
 	// 	}
 
 	_fchownat = sip_find_sym("fchownat");
 
-	// TODO: Change pathname to redirected_path
-	int rv = _fchownat(dirfd, pathname, owner, group, flags);
+	int rv = _fchownat(dirfd, redirected_path, owner, group, flags);
 
 	if (rv == -1 && (errno == EACCES || errno == EPERM) && SIP_IS_LOWI) {
 		
-		sip_info("Delegating fchownat on %s\n", pathname);
+		sip_info("Delegating fchownat on %s\n", redirected_path);
 
-		pathname = sip_abs_path(dirfd, pathname); /* to avoid passing dirfd to helper */
+		temp_path = redirected_path;
+		redirected_path = sip_abs_path(dirfd, redirected_path); /* to avoid passing dirfd to helper */
+		free(temp_path);
 
 		SIP_PREPARE_REQ(fchownat, request);
 		SIP_PREPARE_RES(response);
-		strncpy(request.pathname, pathname, PATH_MAX);
+		strncpy(request.pathname, redirected_path, PATH_MAX);
 		request.owner = owner;
 		request.group = group;
 		request.flags = flags;
@@ -268,14 +252,10 @@ sip_wrapper(int, fchownat, int dirfd, const char *pathname, uid_t owner, gid_t g
 			rv = response.rv;
 			errno = response.err;
 		}
+
+		free(redirected_path);
 	}
 
-	// TODO: if(rv > 0 && sip_is_redirected(pathname)) {
- 	// 	char* orig_path = sip_revert_path(pathname);
- 	// 	   	strcpy(pathname, orig_path);
- 	// 	   	return strlen(orig_path) - 1; 	/* exclude null terminator */
- 	// 	}
- 	//free(redirected_path);
 	return rv;
 }
 
@@ -289,33 +269,9 @@ sip_wrapper(int, fchown, int fd, uid_t owner, gid_t group) {
 	if (path == NULL)
 		return -1;
 
-	sip_info("in fchown. resolved fd %d to path %s\n", fd, path);
-
-	/* TODO: To avoid compiler warnings, created a copy of pathname we can modify */
- 	//  char *redirected_path = strdup(pathname);
-
- 	//  if (redirected_path == NULL) {
- 	//  	sip_error("readlinkat aborted: out of memory.\n");
- 	//    	return -1;
- 	//  }
-
- 	//  /* Redirect pathname before call if appropriate */
-    //  if(SIP_LV_LOW) {
-    	
-	// 		redirected_path = sip_convert_to_redirected_path(redirected_path);
-	// 	}
-
-	// TODO: change path to redirected_path
 	int res = fchownat(AT_FDCWD, path, owner, group, 0);
 
-	// TODO: if(res > 0 && sip_is_redirected(pathname)) {
- 	// 	char* orig_path = sip_revert_path(pathname);
- 	// 	   	strcpy(pathname, orig_path);
- 	// 	   	return strlen(orig_path) - 1; 	/* exclude null terminator */
- 	// 	}
-
 	free(path);
-	//free(redirected_path);
 	return res;
 }
 
@@ -505,34 +461,33 @@ sip_wrapper(int, __fxstatat, int ver, int dirfd, const char *pathname, struct st
 
 	sip_info("Intercepted fstatat call with dirfd: %d, path: %s, flags: %d\n", dirfd, pathname, flags);
 
-	/* TODO: To avoid compiler warnings, created a copy of pathname we can modify */
- 	//  char *redirected_path = strdup(pathname);
+ 	char *redirected_path = strdup(pathname), *temp_path;
 
- 	//  if (redirected_path == NULL) {
- 	//  	sip_error("readlinkat aborted: out of memory.\n");
- 	//    	return -1;
- 	//  }
+	if (redirected_path == NULL) {
+		sip_error("__fxstatat aborted: out of memory.\n");
+		return -1;
+	}
 
- 	//  /* Redirect pathname before call if appropriate */
-    //  if(SIP_LV_LOW) {
-    	
+ 	/* Redirect pathname before call if appropriate */
+    //  if(SIP_LV_LOW) {	
 	// 		redirected_path = sip_convert_to_redirected_path(redirected_path);
 	// 	}
 
 	___fxstatat = sip_find_sym("__fxstatat");
 
-	// TODO: change path to redirected_path
-	int rv = ___fxstatat(ver, dirfd, pathname, statbuf, flags);
+	int rv = ___fxstatat(ver, dirfd, redirected_path, statbuf, flags);
 
 	if (rv == -1 && errno == EACCES && SIP_IS_LOWI) {
 
-		sip_info("Delegating __fxstatat on %s\n", pathname);
+		sip_info("Delegating __fxstatat on %s\n", redirected_path);
 
-		pathname = sip_abs_path(dirfd, pathname); /* to avoid passing dirfd to helper */
+		temp_path = redirected_path;
+		redirected_path = sip_abs_path(dirfd, redirected_path); /* to avoid passing dirfd to helper */
+		free(temp_path);
 
 		SIP_PREPARE_REQ(fstatat, request);
 		SIP_PREPARE_RES(response);
-		strncpy(request.pathname, pathname, PATH_MAX);
+		strncpy(request.pathname, redirected_path, PATH_MAX);
 		request.flags = flags;
 		
 		if (sip_delegate_call(&request, &response) == 0) {
@@ -543,14 +498,9 @@ sip_wrapper(int, __fxstatat, int ver, int dirfd, const char *pathname, struct st
 				memcpy(statbuf, response.buf, sizeof(struct stat));
 			}
 		}
-	}
 
-	// TODO: if(res > 0 && sip_is_redirected(pathname)) {
- 	// 	char* orig_path = sip_revert_path(pathname);
- 	// 	   	strcpy(pathname, orig_path);
- 	// 	   	return strlen(orig_path) - 1; 	/* exclude null terminator */
- 	// 	}
-	//free(redirected_path);
+		free(redirected_path);
+	}
 
 	return rv;
 }
@@ -601,27 +551,28 @@ sip_wrapper(int, statvfs, const char *path, struct statvfs *buf) {
 
 	sip_info("Intercepted statvfs call with path: %s\n", path);
 	
-	if (SIP_IS_LOWI) {
-		// path = sip_convert_to_redirected_path(path); 
-	}
+	/* Create copy of path we can modify */
+	char* redirected_path = strdup(path), *temp_path;
+
+	// if (SIP_IS_LOWI) {
+	//		redirected_path = sip_convert_to_redirected_path(redirected_path); 
+	// }
 
 	_statvfs = sip_find_sym("statvfs");
 
-    int res = _statvfs(path, buf);
-
-
-	//TODO: change fd to rfd for redirected 
-    int res == ___statvfs(fd, buf);
+    int res = _statvfs(redirected_path, buf);
 
 	if (res == -1 && errno == EACCES && SIP_IS_LOWI) {
 		
-		sip_info("Delegating statvfs on %s\n", path);
+		sip_info("Delegating statvfs on %s\n", redirected_path);
 
-		path = sip_abs_path(AT_FDCWD, path); /* handle relative paths */
+		temp_path = redirected_path;
+		redirected_path = sip_abs_path(AT_FDCWD, redirected_path); /* handle relative paths */
+		free(temp_path);
 
 		SIP_PREPARE_REQ(statvfs, request);
 		SIP_PREPARE_RES(response);
-		strncpy(request.path, path, PATH_MAX);
+		strncpy(request.path, redirected_path, PATH_MAX);
 		
 		if (sip_delegate_call(&request, &response) == 0) {
 			res = response.rv;
@@ -631,8 +582,11 @@ sip_wrapper(int, statvfs, const char *path, struct statvfs *buf) {
 				memcpy(buf, response.buf, sizeof(struct statvfs));
 			}
 		}
+
+		free(redirected_path);
 	}
-	return buf;
+
+	return res;
 }
 
 /**
@@ -644,58 +598,15 @@ sip_wrapper(int, statvfs, const char *path, struct statvfs *buf) {
  * ---------------------------------------------------------------------------
  */
 sip_wrapper(int, fstatvfs, int fd, struct statvfs *buf) {
-
-	sip_info("Intercepted statfs call with path: %s\n", path);
-	
-	/* TODO: To avoid compiler warnings, created a copy of pathname we can modify */
- 	//  char *redirected_path = strdup(path);
-
- 	//  if (redirected_path == NULL) {
- 	//  	sip_error("readlinkat aborted: out of memory.\n");
- 	//    	return -1;
- 	//  }
-
- 	//  /* Redirect pathname before call if appropriate */
-    //  if(SIP_LV_LOW) {
-    	
-	// 		redirected_path = sip_convert_to_redirected_path(redirected_path);
-	// 	}
-
-	___statvfs = sip_find_sym("__statvfs");
-
-	//TODO: Change path to redirected_path
-    int res == ___statvfs(path, buf);
-
-    if(sip_is_redirect(buf) == 1) {
-
 	char* path = sip_fd_to_path(fd);
 
-	if (path == NULL)
+	if (path == NULL) {
 		return -1;
-
-	if (SIP_IS_LOWI) {
-		// path = sip_convert_to_redirected_path(path); 
 	}
 
-	return buf;
-}
-
-/**
- * Wrapper for link(2). Enforces the following policy:
- *
- * PROCESS LEVEL | ACTION
- * ---------------------------------------------------------------------------
- * Send to linkat()
- * ---------------------------------------------------------------------------
- */
-
-sip_wrapper(int, link, const char *oldpath, const char *newpath) {
-
-	sip_info("Intercepted link call with oldpath: %s, newpath: %s\n", oldpath, newpath);
-
-    int res = statvfs(path, buf);
-    free(path);
-    return res;
+	int res = statvfs(path, buf);
+	free(path);
+	return res;
 }
 
 /**
@@ -761,30 +672,36 @@ sip_wrapper(int, link, const char *oldpath, const char *newpath) {
  */
 sip_wrapper(int, mkdirat, int dirfd, const char *pathname, mode_t mode) {
 
-	if (SIP_IS_LOWI) {
-		// TODO: REDIRECT IF NECESSARY. SOMETHING LIKE
-		// *path = sip_get_redirected_path(pathname);
-	}
+	/* Create copy of pathname we can modify */
+	char* redirected_path = strdup(pathname), *temp_path;
+
+	// if (SIP_IS_LOWI) {
+	// 		redirected_path = sip_convert_to_redirected_path(redirected_path);
+	// }
 
 	_mkdirat = sip_find_sym("mkdirat");
 	
-	int rv = _mkdirat(dirfd, pathname, mode);
+	int rv = _mkdirat(dirfd, redirected_path, mode);
 
 	if (rv == -1 && errno == EACCES && SIP_IS_LOWI) {
 		
-		sip_info("Delegating mkdirat with path %s\n", pathname);
+		sip_info("Delegating mkdirat with path %s\n", redirected_path);
 
-		pathname = sip_abs_path(dirfd, pathname); /* handle relative paths */
+		temp_path = redirected_path;
+		redirected_path = sip_abs_path(dirfd, redirected_path); /* handle relative paths */
+		free(temp_path);
 
 		SIP_PREPARE_REQ(mkdirat, request);
 		SIP_PREPARE_RES(response);
-		strncpy(request.pathname, pathname, PATH_MAX);
+		strncpy(request.pathname, redirected_path, PATH_MAX);
 		request.mode = mode;
 		
 		if (sip_delegate_call(&request, &response) == 0) {
 			rv = response.rv;
 			errno = response.err;	
 		}
+
+		free(redirected_path);
 	}
 
 	return rv;
@@ -814,24 +731,27 @@ sip_wrapper(int, mkdir, const char *pathname, mode_t mode) {
  */
 sip_wrapper(int, __xmknodat, int ver, int dirfd, const char *pathname, mode_t mode, dev_t *dev) {
 
-	if (SIP_IS_LOWI) {
-		// TODO: REDIRECT IF NECESSARY. SOMETHING LIKE
-		// *pathname = sip_get_redirected_path(pathname);
-	}
+	char* redirected_path = strdup(pathname), *temp_path;
+
+	// if (SIP_IS_LOWI) {
+	// 	redirected_path = sip_get_redirected_path(redirected_path);
+	// }
 
 	___xmknodat = sip_find_sym("__xmknodat");
 
-	int rv = ___xmknodat(ver, dirfd, pathname, mode, dev);
+	int rv = ___xmknodat(ver, dirfd, redirected_path, mode, dev);
 
 	if (rv == -1 && (errno == EACCES || errno == EPERM) && SIP_IS_LOWI) {
 		
-		sip_info("Delegating __xmknodat with path %s\n", pathname);
+		sip_info("Delegating __xmknodat with path %s\n", redirected_path);
 
-		pathname = sip_abs_path(dirfd, pathname); /* handle relative paths */
+		temp_path = redirected_path;
+		redirected_path = sip_abs_path(dirfd, redirected_path); /* handle relative paths */
+		free(temp_path);
 
 		SIP_PREPARE_REQ(mknodat, request);
 		SIP_PREPARE_RES(response);
-		strncpy(request.pathname, pathname, PATH_MAX);
+		strncpy(request.pathname, redirected_path, PATH_MAX);
 		request.mode = mode;
 
 		/* dev parameter only used when type is S_IFCHR or S_IFBLK */
@@ -843,6 +763,8 @@ sip_wrapper(int, __xmknodat, int ver, int dirfd, const char *pathname, mode_t mo
 			rv = response.rv;
 			errno = response.err;	
 		}
+
+		free(redirected_path);
 	}
 
 	return rv;
@@ -898,7 +820,6 @@ sip_wrapper(int, open, const char *__file, int __oflag, ...) {
  *				 | forward to delegator.
  * ---------------------------------------------------------------------------
  */
-
 sip_wrapper(int, openat, int dirfd, const char * __file, int __oflag, ...) {
 	va_list args;
 
@@ -936,11 +857,11 @@ sip_wrapper(int, openat, int dirfd, const char * __file, int __oflag, ...) {
 		
 		sip_info("Delegating openat on %s\n", __file);
 
-		__file = sip_abs_path(dirfd, __file); /* to avoid passing dirfd to helper */
+		char* abspath = sip_abs_path(dirfd, __file); /* to avoid passing dirfd to helper */
 
 		SIP_PREPARE_REQ(openat, request);
 		
-		strncpy(request.file, __file, PATH_MAX);
+		strncpy(request.file, abspath, PATH_MAX);
 		request.mode = mode;
 		request.flags = __oflag;
 
@@ -950,7 +871,10 @@ sip_wrapper(int, openat, int dirfd, const char * __file, int __oflag, ...) {
 			res = response.rv;
 			errno = response.err;
 		}
+
+		free(abspath); /* dynamically allocated by sip_abs_path */
 	}
+
 	return res;
 }
 
@@ -977,10 +901,9 @@ sip_wrapper(ssize_t, readlinkat, int dirfd, const char *pathname, char *buf, siz
     }
 
     /* Redirect pathname before call if appropriate */
-    if(SIP_LV_LOW) {
-
-		//redirected_path = sip_convert_to_redirected_path(redirected_path);
-	}
+ 	// if(SIP_LV_LOW) {
+	// 	redirected_path = sip_convert_to_redirected_path(redirected_path);
+	// }
 
     _readlinkat = sip_find_sym("readlinkat");
 
@@ -1026,19 +949,22 @@ sip_wrapper(int, renameat2, int olddirfd, const char *oldpath, int newdirfd, con
 		sip_info("Delegating renameat2 with oldpath %s, newpath %s\n", oldpath, newpath);
 
 		/* convert paths to abs. paths to avoid passing dir fds */
-		oldpath = sip_abs_path(olddirfd, oldpath);
-		newpath = sip_abs_path(newdirfd, newpath);
+		char* oldpathfull = sip_abs_path(olddirfd, oldpath);
+		char* newpathfull = sip_abs_path(newdirfd, newpath);
 
 		SIP_PREPARE_REQ(renameat2, request);
 		SIP_PREPARE_RES(response);
-		strncpy(request.oldpath, oldpath, PATH_MAX);
-		strncpy(request.newpath, newpath, PATH_MAX);
+		strncpy(request.oldpath, oldpathfull, PATH_MAX);
+		strncpy(request.newpath, newpathfull, PATH_MAX);
 		request.flags = flags;
 		
 		if (sip_delegate_call(&request, &response) == 0) {
 			res = response.rv;
 			errno = response.err;	
 		}
+
+		free(oldpathfull);
+		free(newpathfull);
 	}
 
 	return res;
@@ -1084,15 +1010,13 @@ sip_wrapper(int, rmdir, const char *pathname) {
 
 	sip_info("Intercepted rmdir call with path: %s\n", pathname);
 
-    if (SIP_LV_LOW) {
-		// pathname = sip_convert_to_redirected_path(pathname); 
-	}
+    // if (SIP_LV_LOW) {
+	//	pathname = sip_convert_to_redirected_path(pathname); 
+	// }
 
     _rmdir = sip_find_sym("rmdir");
 
-    int res = _rmdir(pathname);
-
-    return res;
+    return _rmdir(pathname);
 }
 
 /**
@@ -1115,17 +1039,19 @@ sip_wrapper(int, symlinkat, const char *target, int newdirfd, const char *linkpa
 		
 		sip_info("Delegating symlinkat with target %s, linkpath %s\n", target, linkpath);
 
-		linkpath = sip_abs_path(newdirfd, linkpath); /* handle rel. paths */
+		char* linkpathfull = sip_abs_path(newdirfd, linkpath); /* handle rel. paths */
 
 		SIP_PREPARE_REQ(symlinkat, request);
 		SIP_PREPARE_RES(response);
 		strncpy(request.target, target, PATH_MAX);
-		strncpy(request.linkpath, linkpath, PATH_MAX);
+		strncpy(request.linkpath, linkpathfull, PATH_MAX);
 		
 		if (sip_delegate_call(&request, &response) == 0) {
 			res = response.rv;
 			errno = response.err;	
 		}
+
+		free(linkpathfull);
 	}
 
     return res;
@@ -1159,9 +1085,9 @@ sip_wrapper(int, unlinkat, int dirfd, const char *pathname, int flags) {
 
 	sip_info("Intercepted unlinkat call with dirfd: %d, path: %s, flags: %d\n", dirfd, pathname, flags);
 
-    if(SIP_LV_LOW) {
-		// pathname = sip_convert_to_redirected_path(pathname); 
-	}
+ 	// if (SIP_LV_LOW) {
+	// 	pathname = sip_convert_to_redirected_path(pathname); 
+	// }
 
     _unlinkat = sip_find_sym("unlinkat");
 
@@ -1171,17 +1097,19 @@ sip_wrapper(int, unlinkat, int dirfd, const char *pathname, int flags) {
 
 		sip_info("Delegating unlinkat with pathname %s\n", pathname);
 
-		pathname = sip_abs_path(dirfd, pathname); /* handle rel. paths */
+		char* abspathname = sip_abs_path(dirfd, pathname); /* handle rel. paths */
 
 		SIP_PREPARE_REQ(unlinkat, request);
 		SIP_PREPARE_RES(response);
-		strncpy(request.pathname, pathname, PATH_MAX);
+		strncpy(request.pathname, abspathname, PATH_MAX);
 		request.flags = flags;
 		
 		if (sip_delegate_call(&request, &response) == 0) {
 			res = response.rv;
 			errno = response.err;	
 		}
+
+		free(abspathname);
     }
 
     return res;
@@ -1211,10 +1139,9 @@ sip_wrapper(int, unlink, const char *pathname) {
  */
 sip_wrapper(int, utime, const char *path, const struct utimbuf *times) {
 
-	if (SIP_IS_LOWI) {
-		// TODO: REDIRECT IF NECESSARY. SOMETHING LIKE
-		// *path = sip_get_redirected_path(path);
-	}
+	// if (SIP_IS_LOWI) {
+	//	path = sip_get_redirected_path(path);
+	// }
 
     _utime = sip_find_sym("utime");
 
@@ -1224,17 +1151,19 @@ sip_wrapper(int, utime, const char *path, const struct utimbuf *times) {
     	
     	sip_info("Delegating utime with path %s\n", path);
 
-		path = sip_abs_path(AT_FDCWD, path); /* handle rel. paths */
+		char* pathfull = sip_abs_path(AT_FDCWD, path); /* handle rel. paths */
 
 		SIP_PREPARE_REQ(utime, request);
 		SIP_PREPARE_RES(response);
-		strncpy(request.path, path, PATH_MAX);
+		strncpy(request.path, pathfull, PATH_MAX);
 		memcpy(&request.times, times, sizeof(struct utimbuf));
 		
 		if (sip_delegate_call(&request, &response) == 0) {
 			rv = response.rv;
 			errno = response.err;	
 		}
+
+		free(pathfull);
     }
 
     return rv;
@@ -1252,10 +1181,9 @@ sip_wrapper(int, utime, const char *path, const struct utimbuf *times) {
  */
 sip_wrapper(int, utimes, const char *filename, const struct timeval times[2]) {
 	
-	if (SIP_IS_LOWI) {
-		// TODO: REDIRECT IF NECESSARY. SOMETHING LIKE
-		// *path = sip_get_redirected_path(filename);
-	}
+	// if (SIP_IS_LOWI) {
+	// 	filename = sip_convert_to_redirected_path(filename);
+	// }
 
     _utimes = sip_find_sym("utimes");
 
@@ -1265,17 +1193,19 @@ sip_wrapper(int, utimes, const char *filename, const struct timeval times[2]) {
     	
     	sip_info("Delegating utimes with filename %s\n", filename);
 
-		filename = sip_abs_path(AT_FDCWD, filename); /* handle rel. paths */
+		char* filenamefull = sip_abs_path(AT_FDCWD, filename); /* handle rel. paths */
 
 		SIP_PREPARE_REQ(utimes, request);
 		SIP_PREPARE_RES(response);
-		strncpy(request.filename, filename, PATH_MAX);
+		strncpy(request.filename, filenamefull, PATH_MAX);
 		memcpy(&request.times, times, 2 * sizeof(struct timeval));
 		
 		if (sip_delegate_call(&request, &response) == 0) {
 			rv = response.rv;
 			errno = response.err;	
 		}
+
+		free(filenamefull);
     }
 
     return rv;
@@ -1293,10 +1223,9 @@ sip_wrapper(int, utimes, const char *filename, const struct timeval times[2]) {
  */
 sip_wrapper(int, utimensat, int dirfd, const char *pathname, const struct timespec times[2], int flags) {
 
-	if (SIP_IS_LOWI) {
-		// TODO: REDIRECT IF NECESSARY. SOMETHING LIKE
-		// pathname = sip_get_redirected_path(pathname);
-	}
+	// if (SIP_IS_LOWI) {
+	// 	pathname = sip_get_redirected_path(pathname);
+	// }
 
     _utimensat = sip_find_sym("utimensat");
 
@@ -1306,11 +1235,11 @@ sip_wrapper(int, utimensat, int dirfd, const char *pathname, const struct timesp
     	
     	sip_info("Delegating utimensat with pathname %s\n", pathname);
 
-		pathname = sip_abs_path(dirfd, pathname); /* handle rel. paths */
+		char* pathnamefull = sip_abs_path(dirfd, pathname); /* handle rel. paths */
 
 		SIP_PREPARE_REQ(utimensat, request);
 		SIP_PREPARE_RES(response);
-		strncpy(request.pathname, pathname, PATH_MAX);
+		strncpy(request.pathname, pathnamefull, PATH_MAX);
 		memcpy(&request.times, times, 2 * sizeof(struct timespec));
 		request.flags = flags;
 		
@@ -1318,6 +1247,8 @@ sip_wrapper(int, utimensat, int dirfd, const char *pathname, const struct timesp
 			rv = response.rv;
 			errno = response.err;	
 		}
+
+		free(pathnamefull);
     }
 
     return rv;
@@ -1335,11 +1266,6 @@ sip_wrapper(int, utimensat, int dirfd, const char *pathname, const struct timesp
  */
 sip_wrapper(int, futimens, int fd, const struct timespec times[2]) {
 
-	if (SIP_IS_LOWI) {
-		// TODO: REDIRECT IF NECESSARY. SOMETHING LIKE
-		// *path = sip_get_redirected_path(filename);
-	}
-
     _futimens = sip_find_sym("futimens");
 
     int rv = _futimens(fd, times);
@@ -1352,6 +1278,12 @@ sip_wrapper(int, futimens, int fd, const struct timespec times[2]) {
     	   We convert to an equivalent utimensat call here so as to avoid
     	   passing the fd to the helper. */
     	char* pathname = sip_fd_to_path(fd);
+
+  		// if (SIP_IS_LOWI) {
+  		//  char* temp_path = pathname;
+		// 	pathname = sip_convert_to_redirected_path(pathname);
+		// 	free(temp_path);
+		// }
 
     	if (pathname != NULL) {
     		
