@@ -4,6 +4,8 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <utime.h>
+#include <sys/time.h>
 
 
 /**
@@ -115,35 +117,57 @@ void handle_renameat2(struct sip_request_renameat2 *request, struct sip_response
  * Handler for symlinkat.
  */
 void handle_symlinkat(struct sip_request_symlinkat *request, struct sip_response *response) {
-	// TODO
+	// If target is high integrity, deny (prevents creating very long chains for TOCTTOU attacks)
+	if (sip_path_to_level(request->target) == SIP_LV_HIGH) {
+		response->rv = -1;
+		response->err = EACCES; // Write access is denied error
+		return;
+	}
+	// Else, allow
+	response->rv = symlinkat(request->target, AT_FDCWD, request->linkpath);
+	repsonse->err = errno;
 }
 
 /**
  * Handler for unlinkat.
  */
 void handle_unlinkat(struct sip_request_unlinkat *request, struct sip_response *response) {
-	// TODO
+	// If target is high integrity, deny
+	if (sip_path_to_level(request->pathname) == SIP_LV_HIGH) {
+		response->rv = -1;
+		response->err = EBADF; // Error for invalid FD
+		return;
+	}
+	// Otherwise, allow
+	response->rv = unlinkat(AT_FDCWD, request->pathname, request->flags);
+	response->err = errno;
 }
 
 /**
  * Handler for utime.
  */
 void handle_utime(struct sip_request_utime *request, struct sip_response *response) {
-	// TODO
+	// No private copies of files are made and this syscall will always write, so allow it
+	response->rv = utime(AT_FDCWD, request->path, request->times);
+	response->err = errno;
 }
 
 /**
  * Handler for utimes.
  */
 void handle_utimes(struct sip_request_utimes *request, struct sip_response *response) {
-	// TODO
+	// No private copies of files are made and this syscall will always write, so allow it
+	response->rv = utimes(AT_FDCWD, request->filename, request->times);
+	response->err = errno;
 }
 
 /**
  * Handler for utimensat.
  */
 void handle_utimensat(struct sip_request_utimensat *request, struct sip_response *response) {
-	// TODO
+	// No private copies of files are made and this syscall will always write, so allow it
+	response->rv = ultimenstat(AT_FDCWD, request->pathname, request->times, request->flags);
+	response->err = errno;
 }
 
 /**
