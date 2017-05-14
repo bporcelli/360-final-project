@@ -23,7 +23,6 @@ void handle_delegatortest(struct sip_request_test *request, struct sip_response 
  * Handler for faccessat.
  */
 void handle_faccessat(struct sip_request_faccessat *request, struct sip_response *response) {
-
 	if (SIP_LV_HIGH == sip_path_to_level(request->pathname) && (request->mode & W_OK)) {
 		response->rv = -1;
 		response->err = EACCES;
@@ -38,7 +37,6 @@ void handle_faccessat(struct sip_request_faccessat *request, struct sip_response
  * Handler for fchmodat.
  */
 void handle_fchmodat(struct sip_request_fchmodat *request, struct sip_response *response) {
-
 	if(SIP_LV_LOW == sip_path_to_level(request->pathname)) {
 		response->rv = fchmodat(AT_FDCWD, request->pathname, request->mode, request->flags);
 		response->err = errno;
@@ -53,7 +51,6 @@ void handle_fchmodat(struct sip_request_fchmodat *request, struct sip_response *
  * Handler for fchownat.
  */
 void handle_fchownat(struct sip_request_fchownat *request, struct sip_response *response) {
-
 	if(SIP_LV_LOW == sip_path_to_level(request->pathname)) {
 		response->rv = fchownat(AT_FDCWD, request->pathname, request->owner, request->group, request->flags);
 		response->err = errno;

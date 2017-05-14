@@ -935,40 +935,40 @@ sip_wrapper(ssize_t, readlink, const char *pathname, char *buf, size_t bufsiz) {
  * LOW           | Delegate to helper if request fails due to permissions.
  * ---------------------------------------------------------------------------
  */
-sip_wrapper(int, renameat2, int olddirfd, const char *oldpath, int newdirfd, const char *newpath, unsigned int flags) {
+// sip_wrapper(int, renameat2, int olddirfd, const char *oldpath, int newdirfd, const char *newpath, unsigned int flags) {
 
-    sip_info("Intercepted renameat2 call with olddirfd: %s, oldpath: %s, newdirfd: %d, newpath: %s, flags: %d\n", 
-    	olddirfd, oldpath, newdirfd, newpath, flags);
+//     sip_info("Intercepted renameat2 call with olddirfd: %s, oldpath: %s, newdirfd: %d, newpath: %s, flags: %d\n", 
+//     	olddirfd, oldpath, newdirfd, newpath, flags);
 
-	_renameat2 = sip_find_sym("renameat2");
+// 	_renameat2 = sip_find_sym("renameat2");
 
-	int res = _renameat2(olddirfd, oldpath, newdirfd, newpath, flags);
+// 	int res = _renameat2(olddirfd, oldpath, newdirfd, newpath, flags);
 
-	if(res == -1 && errno == EACCES && SIP_IS_LOWI) {
+// 	if(res == -1 && errno == EACCES && SIP_IS_LOWI) {
 		
-		sip_info("Delegating renameat2 with oldpath %s, newpath %s\n", oldpath, newpath);
+// 		sip_info("Delegating renameat2 with oldpath %s, newpath %s\n", oldpath, newpath);
 
-		/* convert paths to abs. paths to avoid passing dir fds */
-		char* oldpathfull = sip_abs_path(olddirfd, oldpath);
-		char* newpathfull = sip_abs_path(newdirfd, newpath);
+// 		/* convert paths to abs. paths to avoid passing dir fds */
+// 		char* oldpathfull = sip_abs_path(olddirfd, oldpath);
+// 		char* newpathfull = sip_abs_path(newdirfd, newpath);
 
-		SIP_PREPARE_REQ(renameat2, request);
-		SIP_PREPARE_RES(response);
-		strncpy(request.oldpath, oldpathfull, PATH_MAX);
-		strncpy(request.newpath, newpathfull, PATH_MAX);
-		request.flags = flags;
+// 		SIP_PREPARE_REQ(renameat2, request);
+// 		SIP_PREPARE_RES(response);
+// 		strncpy(request.oldpath, oldpathfull, PATH_MAX);
+// 		strncpy(request.newpath, newpathfull, PATH_MAX);
+// 		request.flags = flags;
 		
-		if (sip_delegate_call(&request, &response) == 0) {
-			res = response.rv;
-			errno = response.err;	
-		}
+// 		if (sip_delegate_call(&request, &response) == 0) {
+// 			res = response.rv;
+// 			errno = response.err;	
+// 		}
 
-		free(oldpathfull);
-		free(newpathfull);
-	}
+// 		free(oldpathfull);
+// 		free(newpathfull);
+// 	}
 
-	return res;
-}
+// 	return res;
+// }
 
 /**
  * Wrapper for renameat(2). Enforces the following policy:
@@ -978,9 +978,9 @@ sip_wrapper(int, renameat2, int olddirfd, const char *oldpath, int newdirfd, con
  * Redirects to renameat2()
  * ---------------------------------------------------------------------------
  */
-sip_wrapper(int, renameat, int olddirfd, const char *oldpath, int newdirfd, const char *newpath) {
-    return renameat2(olddirfd, oldpath, newdirfd, newpath, 0);
-}
+// sip_wrapper(int, renameat, int olddirfd, const char *oldpath, int newdirfd, const char *newpath) {
+//     return renameat2(olddirfd, oldpath, newdirfd, newpath, 0);
+// }
 
 /**
  * Basic wrapper for rename(2). It logs the rename(2) request, then invokes
@@ -991,9 +991,9 @@ sip_wrapper(int, renameat, int olddirfd, const char *oldpath, int newdirfd, cons
  * Redirects to renameat2()
  * ---------------------------------------------------------------------------
  */
-sip_wrapper(int, rename, const char *oldpath, const char *newpath) {
-    return renameat2(AT_FDCWD, oldpath, AT_FDCWD, newpath, 0);
-}
+// sip_wrapper(int, rename, const char *oldpath, const char *newpath) {
+//     return renameat2(AT_FDCWD, oldpath, AT_FDCWD, newpath, 0);
+// }
 
 /**
  * Wrapper for rmdir(2). Enforces the following policy:
@@ -1124,7 +1124,7 @@ sip_wrapper(int, unlinkat, int dirfd, const char *pathname, int flags) {
  * ---------------------------------------------------------------------------
  */
 sip_wrapper(int, unlink, const char *pathname) {
-    return unlinkat(AT_FDCWD, pathname, AT_SYMLINK_FOLLOW);
+    return unlinkat(AT_FDCWD, pathname, 0);
 }
 
 /**
