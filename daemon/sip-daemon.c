@@ -42,8 +42,6 @@ void *handle_connection(void* arg) {
 	int clientfd = *(int*) arg, pkt_head[2], respfd;
 	free(arg);
 
-	sip_info("Spawned thread to handle connection with descriptor %d\n", clientfd);
-
 	while (1) {
 
 		respfd = -1; /* fd to include in response (-1 for none) */
@@ -72,6 +70,8 @@ void *handle_connection(void* arg) {
 			break;
 		}
 
+		sip_info("Received delegated syscall request. Call number is %d.\n", pkt_head[0]);
+
 		/* Based on call number, execute an appropriate handler. Note that
 		   calls that send back file descriptors need special handling, as
 		   we must sendmsg instead of send to send back the response. */ 
@@ -80,56 +80,58 @@ void *handle_connection(void* arg) {
 				handle_delegatortest(packet, &response);
 			break;
 			case SYS_faccessat:
-				// TODO
+				handle_faccessat(packet, &response);
 			break;
 			case SYS_fchmodat:
-				// TODO
+				handle_fchmodat(packet, &response);
 			break;
 			case SYS_fchownat:
-				// TODO
+				handle_fchownat(packet, &response);
 			break;
 			case SYS_fstatat:
-				// TODO
+				handle_fstatat(packet, &response);
 			break;
 			case SYS_statvfs:
-				// TODO
+				handle_statvfs(packet, &response);
 			break;
 			case SYS_linkat:
-				// TODO
+				handle_linkat(packet, &response);
 			break;
 			case SYS_mkdirat:
-				// TODO
+				handle_mkdirat(packet, &response);
 			break;
 			case SYS_mknodat:
-				// TODO
+				handle_mknodat(packet, &response);
 			break;
 			case SYS_openat:
 				handle_openat(packet, &response);
 				respfd = response.rv;
 			break;
 			case SYS_renameat2:
-				// TODO
+				handle_renameat2(packet, &response);
 			break;
 			case SYS_symlinkat:
-				// TODO
+				handle_symlinkat(packet, &response);
 			break;
 			case SYS_unlinkat:
-				// TODO
+				handle_unlinkat(packet, &response);
 			break;
 			case SYS_utime:
-				// TODO
+				handle_utime(packet, &response);
 			break;
 			case SYS_utimes:
-				// TODO
+				handle_utimes(packet, &response);
 			break;
 			case SYS_utimensat:
-				// TODO
+				handle_utimensat(packet, &response);
 			break;
 			case SYS_bind:
-				// TODO
+				handle_bind(packet, &response);
+				respfd = response.rv;
 			break;
 			case SYS_connect:
-				// TODO
+				handle_connect(packet, &response);
+				respfd = response.rv;
 			break;
 			default:
 				sip_error("Unhandled delegated syscall: %d\n", pkt_head[0]);
@@ -151,8 +153,6 @@ void *handle_connection(void* arg) {
 			}
 		}
 	}
-
-	sip_info("Exiting thread for descriptor %d.\n", clientfd);
 
 	/* Clean up */
 	if (packet != NULL)
