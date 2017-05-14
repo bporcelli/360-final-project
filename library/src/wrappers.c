@@ -797,10 +797,18 @@ sip_wrapper(int, renameat2, int olddirfd, const char *oldpath, int newdirfd, con
     sip_info("Intercepted renameatat2 call with olddirfd: %s, oldpath: %s, newdirfd: %d, newpath: %s, flags: %d\n", 
     	olddirfd, oldpath, newdirfd, newpath, flags);
 
-    __renameat2 = sip_find_sym("renameat2");
-    return __renameat2(olddirfd, oldpath, newdirfd, newpath, flags);
-}
+	__renameat2 = sip_find_sym("renameat2");
 
+	int res = __renameat(olddirfd, oldpath, newdirfd, newpath, flags);
+
+	if(res == -1 && errno == EACCES && SIP_IS_LOWI) {
+		// TODO: SEND REQUEST TO DELEGATOR. UPDATE ERRNO/RV ON RESPONSE.
+		// HOW TO DO THIS WITHOUT COPYING THE PIP SOLUTION ONE-FOR-ONE...?
+		sip_info("Would delegate renameat on %s\n", olddirfd);
+	}
+
+	return res;
+}
 
 
 /**
