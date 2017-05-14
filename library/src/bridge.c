@@ -7,7 +7,6 @@
 #include <string.h>
 #include <errno.h>
 #include <stdio.h>
-#include "packet.h"
 #include "logger.h"
 #include "common.h"
 
@@ -146,6 +145,5 @@ int sip_delegate_call(struct msghdr *request, struct msghdr *response) {
 
 	/* Set response value and errno -- leave it to the caller to extract
 	   any other needed values in the response. */
-	errno = SIP_PKT_GET(response, 1, int);
-	return SIP_PKT_GET(response, 0, int);
+	return 0;
 }

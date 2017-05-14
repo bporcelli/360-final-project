@@ -19,7 +19,6 @@
 
 #include "common.h"   // Generated from template
 #include "logger.h"   // Logging
-#include "packet.h"   // Packet manipulation methods
 #include "handlers.h" // Syscall handlers
 
 #define DAEMON_MAX_CONNECTION 1000
@@ -39,60 +38,36 @@ void *handle_connection(void* arg) {
 
 	sip_info("Spawned thread to handle connection with descriptor %d\n", clientfd);
 
-	struct msghdr request, response;
-
-	sip_packet_init(&request);
-	sip_packet_init(&response);
-
-	long callnum;
+	long callnum = 0;
 
 	while (1) {
 
-		/* Initially, we allocate enough space to store the sycall num only. */
-		SIP_PKT_SET(&request, 0, SIP_ARG, long, &callnum);
-
 		/* Peek into message queue to get syscall number. */
-		ssize_t received = recvmsg(clientfd, &request, MSG_PEEK);
+		// ssize_t received = recvmsg(clientfd, &request, MSG_PEEK);
 
-		if (received == 0) {
-			sip_info("Client closed connection. Exiting thread loop.\n");
-			break;
-		}
+		// if (received == 0) {
+		// 	sip_info("Client closed connection. Exiting thread loop.\n");
+		// 	break;
+		// }
 
 		sip_info("Received syscall request with number %ld. Entering switch.\n", callnum);
 
 		/* Based on call number, initialize request struct with enough space
 		   for all args. Then, re-read from message queue and build response. */
 		switch (callnum) {
-			case SYS_delegatortest:
-				sip_info("Delegator received delegatortest call.\n");
-				
-				long arg1, arg2;
-				
-				SIP_PKT_SET(&request, 1, SIP_ARG, long, &arg1);
-				SIP_PKT_SET(&request, 2, SIP_ARG, long, &arg2);
-				
-				if (recvmsg(clientfd, &request, 0) > 0)
-					handle_delegatortest(&request, &response);
-				else
-					sip_error("Couldn't re-read message: %s\n", strerror(errno));
-			break;
 			default:
 				sip_error("Unhandled delegated syscall: %d\n", callnum);
 				continue;
 		}
 
 		/* Send back response */
-		ssize_t sent = sendmsg(clientfd, &response, 0);
+		// ssize_t sent = sendmsg(clientfd, &response, 0);
 
-		if (sent == -1) {
-			sip_error("Failed to send response to client: %s\n", strerror(errno));
-			return NULL; /* TODO: appropriate? */
-		}
+		// if (sent == -1) {
+		// 	sip_error("Failed to send response to client: %s\n", strerror(errno));
+		// 	return NULL; /* TODO: appropriate? */
+		// }
 	}
-
-	sip_packet_destroy(&request);
-	sip_packet_destroy(&response);
 
 	sip_info("Exiting thread for descriptor %d.\n", clientfd);
 

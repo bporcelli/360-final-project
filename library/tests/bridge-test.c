@@ -9,31 +9,9 @@
 #include <sys/socket.h>
 #include <stdio.h>
 #include <errno.h>
-#include "packet.h"
 #include "bridge.h"
 
 int main(int argc, char** argv) {
-	struct msghdr request;
-	struct msghdr response;
-
-	sip_packet_init(&request);
-	
-	long arg1 = SYS_delegatortest;
-	long arg2 = 42;
-
-	SIP_PKT_SET(&request, 0, SIP_ARG, long, &arg1);
-	SIP_PKT_SET(&request, 1, SIP_ARG, long, &arg2); // should be returned in errno
-
-	printf("sending syscall request...\n");
-
-	int rv = sip_delegate_call(&request, &response);
-
-	if (rv == -1) {
-		printf("failed to send request :(\n");
-	} else {
-		printf("return value is %ld and errno is %d\n", arg1, errno);
-	}
-	
-	sip_packet_destroy(&request);
+	// TODO
 	return 0;
 }
