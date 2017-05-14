@@ -20,6 +20,7 @@
 #include "common.h"   // Generated from template
 #include "logger.h"   // Logging
 #include "handlers.h" // Syscall handlers
+#include "packets.h"  // Packet structs
 
 #define DAEMON_MAX_CONNECTION 1000
 
@@ -31,47 +32,68 @@ static int exit_flag = 0;
  * @param void* pointer to client socket descriptor.
  */
 void *handle_connection(void* arg) {
-	pthread_detach(pthread_self());	/* Let OS reap thread resources */
+	
+	pthread_detach(pthread_self()); /* Let OS reap thread resources */
 
-	int clientfd = *(int*) arg;
+	struct sip_response response;
+	ssize_t sent = 0, received = 0;
+	void* packet = NULL;
+	int clientfd = *(int*) arg, pkt_head[2];
 	free(arg);
 
 	sip_info("Spawned thread to handle connection with descriptor %d\n", clientfd);
 
-	long callnum = 0;
-
 	while (1) {
 
-		/* Peek into message queue to get syscall number. */
-		// ssize_t received = recvmsg(clientfd, &request, MSG_PEEK);
+		/* Read packet header to determine call number & packet size. */
+	 	received = recv(clientfd, &pkt_head, 2 * sizeof(int), MSG_PEEK);
 
-		// if (received == 0) {
-		// 	sip_info("Client closed connection. Exiting thread loop.\n");
-		// 	break;
-		// }
+		if (received == 0) {
+			sip_info("Client closed connection. Exiting thread loop.\n");
+			break;
+		}
 
-		sip_info("Received syscall request with number %ld. Entering switch.\n", callnum);
+		/* Allocate space for packet. */
+		packet = realloc(packet, pkt_head[1]);	
+		
+		if (packet == NULL) {
+			sip_error("Can't serve request: out of memory.\n");
+			break;
+		}
 
-		/* Based on call number, initialize request struct with enough space
-		   for all args. Then, re-read from message queue and build response. */
-		switch (callnum) {
+		/* Read entire packet. */
+		received = recv(clientfd, packet, pkt_head[1], 0);
+
+		if (received < 0 || received != pkt_head[1]) {
+			sip_error("Failed to read packet: %s\n", strerror(errno));
+			break;
+		}
+
+		/* Based on call number, execute an appropriate handler. */ 
+		switch (pkt_head[0]) {
+			case SYS_delegatortest:
+				handle_delegatortest(packet, &response);
+			break;
 			default:
-				sip_error("Unhandled delegated syscall: %d\n", callnum);
+				sip_error("Unhandled delegated syscall: %d\n", pkt_head[0]);
 				continue;
 		}
 
 		/* Send back response */
-		// ssize_t sent = sendmsg(clientfd, &response, 0);
+		sent = send(clientfd, &response, sizeof(struct sip_response), 0);
 
-		// if (sent == -1) {
-		// 	sip_error("Failed to send response to client: %s\n", strerror(errno));
-		// 	return NULL; /* TODO: appropriate? */
-		// }
+		if (sent != sizeof(struct sip_response)) {
+			sip_error("Failed to send response to client: %s\n", strerror(errno));
+			break;
+		}
 	}
 
 	sip_info("Exiting thread for descriptor %d.\n", clientfd);
 
 	/* Clean up */
+	if (packet != NULL)
+		free(packet);
+
 	close(clientfd);
 }
 
@@ -127,12 +149,13 @@ int main(int argc, char **argv) {
 
 	while (!exit_flag) {
 		clientfd = accept(listenfd, (struct sockaddr*)&client_addr, &addrlen);
-		sip_info("Daemon received a connection request!\n");
 
 		if (clientfd < 0) {
 			sip_error("Accept failed: %s. Aborting.\n", strerror(errno));
 			exit(1);
 		}
+
+		sip_info("Daemon received a connection request!\n");
 
 		// TODO: NEED TO DO THIS? I THINK WE CAN HANDLE THIS PERMS ON COM PATH.
 		// Right now, this function just does logging... but it could:

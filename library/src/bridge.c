@@ -1,6 +1,5 @@
 #include <sys/types.h>
 #include <sys/socket.h>
-#include <sys/uio.h>
 #include <sys/un.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -9,6 +8,7 @@
 #include <stdio.h>
 #include "logger.h"
 #include "common.h"
+#include "packets.h"
 
 static int sockfd = -1;
 
@@ -63,7 +63,6 @@ static int sip_delegate_connect() {
 
 	/* Attempt connection up to 3 times. */
 	do {
-		sip_info("Attempting connection client-side.\n");
 		conn = connect(sockfd, (struct sockaddr*) &addr, sizeof(addr));
 		if (conn < 0) {
 			sip_delegate_start();
@@ -77,73 +76,41 @@ static int sip_delegate_connect() {
 		return 0;
 	}
 
-	sip_info("Connection on client side successful!\n");
-
 	return 1;
 }
 
 /**
- * Sends a syscall request to the trusted helper and gets the response.
+ * This function can be used to delegate a syscall to the trusted helper. It
+ * accepts a pointer to the data to send (one of the structs in packets.h), a
+ * the number of bytes to send, and a pointer to a sip_response struct. On
+ * error, it returns -1. On success, it returns 0 and copies the response to
+ * the response buffer.
  *
- * @param struct msghdr* request
- * @param struct msghdr* response
- * @return int 0 on success, -1 on error.
+ * @param  void* request
+ * @param  struct sip_response* response
+ * @return int -1 on error, 0 on success.
  */
-static int sip_delegate_get_response(struct msghdr *request, struct msghdr *response) {
+int sip_delegate_call(void *request, struct sip_response *response) {
+	
+	struct sip_header *head = (struct sip_header*) request;
 	ssize_t sent, received;
 
 	if (!sip_delegate_connect()) {
 		return -1;
 	}
 
-	sip_info("About to call sendmsg. socket is %d, request is %p.\n", sockfd, request);
-	sip_info("iov_len for request is: %zu\n", request->msg_iovlen);
-	errno = 0;
-
-	sent = sendmsg(sockfd, request, 0);
+	sent = send(sockfd, request, head->size, 0);
 
 	if (sent == -1) {
 		sip_error("Failed to send syscall request: %s\n", strerror(errno));
 		return -1;
-	} else if (sent == 0) {
-		sip_error("No data was sent. Error was: %s\n", strerror(errno));
 	}
 
-	sip_info("Sent %lu bytes to the helper.\n", sent);
-	received = recvmsg(sockfd, response, 0); // TODO: RETURNING BEFORE ACCEPT()
-	sip_info("Received %ld bytes from the helper.\n", received);
+	received = recv(sockfd, response, sizeof(struct sip_response), 0);
 
 	if (received <= 0) {
 		sip_error("Failed to read syscall response: %s\n", strerror(errno));
 		return -1;
 	}
-	return 0;
-}
-
-/**
- * This function can be used to delegate a syscall to the trusted helper. It
- * accepts a syscall number and two pointers to msghdr structs. The first is
- * the request, and the second is used to store the response.
- *
- * On success, the function returns the return value obtained from the helper,
- * sets errno, and copies the response into response.
- *
- * @param struct msghdr* request
- * @param struct msghdr* response
- * @return int
- */
-int sip_delegate_call(struct msghdr *request, struct msghdr *response) {
-	/* Attempt delegated call */
-	int ret = sip_delegate_get_response(request, response);
-
-	sip_info("return from sip_delegate_get_response is: %d\n", ret);
-
-	if (ret == -1) {
-		sip_error("Failed to send delegated call: %s\n", strerror(errno));
-		return -1;
-	}
-
-	/* Set response value and errno -- leave it to the caller to extract
-	   any other needed values in the response. */
 	return 0;
 }
