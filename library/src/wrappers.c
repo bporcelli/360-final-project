@@ -1333,6 +1333,18 @@ sip_wrapper(int, bind, int sockfd, const struct sockaddr *addr, socklen_t addrle
 			SIP_PREPARE_RES(response);
 			memcpy(&request.addr, addr, sizeof(struct sockaddr));
 			request.addrlen = addrlen;
+
+			/* Need to set socktype so server can create socket of appropriate
+			   type. Query using getsockopt. */
+			int socktype, optlen = sizeof(int);		
+
+			if (getsockopt(sockfd, SOL_SOCKET, SO_TYPE, &socktype, &optlen) < 0) {
+				sip_error("Couldn't get socket type for %d -- aborting.\n", sockfd);
+				errno = EACCES;
+				return -1;
+			}
+
+			request.socktype = socktype;
 			
 			if (sip_delegate_call_fd(&request, &response) == 0) {
 				rv = response.rv;
@@ -1379,6 +1391,18 @@ sip_wrapper(int, connect, int sockfd, const struct sockaddr *addr, socklen_t add
 			memcpy(&request.addr, addr, sizeof(struct sockaddr));
 			request.addrlen = addrlen;
 			
+			/* Need to set socktype so server can create socket of appropriate
+			   type. Query using getsockopt. */
+			int socktype, optlen = sizeof(int);
+
+			if (getsockopt(sockfd, SOL_SOCKET, SO_TYPE, &socktype, &optlen) < 0) {
+				sip_error("Couldn't get socket type for %d -- aborting.\n", sockfd);
+				errno = EACCES;
+				return -1;
+			}
+
+			request.socktype = socktype;
+
 			if (sip_delegate_call_fd(&request, &response) == 0) {
 				rv = response.rv;
 				errno = response.err;

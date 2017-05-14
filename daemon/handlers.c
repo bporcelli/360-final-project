@@ -1,5 +1,11 @@
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/socket.h>
+#include <fcntl.h>
+#include <errno.h>
 #include "handlers.h"
 #include "logger.h"
+#include "level.h"
 
 /**
  * Handler for SYS_delegatortest. Simply sets the return value to 0
@@ -68,9 +74,21 @@ void handle_mknodat(struct sip_request_mknodat *request, struct sip_response *re
 
 /**
  * Handler for openat.
+ *
+ * Policy: Deny requests to write high integrity files. Allow all other
+ * requests.
  */
 void handle_openat(struct sip_request_openat *request, struct sip_response *response) {
-	// TODO
+	int writing = (request->flags & O_RDWR) || (request->flags & O_WRONLY);
+
+	if (SIP_LV_HIGH == sip_path_to_level(request->file) && writing) {
+		response->rv = -1;
+		response->err = EACCES;
+		return;
+	}
+
+	response->rv = open(request->file, request->flags, request->mode);
+	response->err = errno;
 }
 
 /**
@@ -118,15 +136,53 @@ void handle_utimensat(struct sip_request_utimensat *request, struct sip_response
 /**
  * Handler for bind. Note that the client side expects this handler to create a NEW
  * socket, bind it to the given address, and return the new socket's descriptor.
+ *
+ * NOTE: Bind requests are only delegated when the socket family is AF_UNIX. Therefore,
+ * we assume AF_UNIX when creating the socket.
  */
 void handle_bind(struct sip_request_bind *request, struct sip_response *response) {
-	// TODO
+	int newfd = socket(AF_UNIX, request->socktype, 0);
+
+	if (newfd == -1) {
+		response->rv = -1;
+		response->err = EACCES;
+		return;
+	}
+
+	/* Bind to given address */
+	response->rv = bind(newfd, &request->addr, request->addrlen);
+	response->err = errno;
+
+	if (response->rv == 0) {
+		response->rv = newfd; /* new fd expected on success */
+		response->err = 0;
+	}
+
+	/* Set permissions so that others can't write to the socket */
+	if (fchmod(newfd, S_IRWXU|S_IRWXG|S_IROTH|S_IXOTH) < 0) {
+		sip_warning("Failed to chmod socket with descriptor %d\n", newfd);
+	}
 }
 
 /**
  * Handler for connect. Note that the client side expects this handler to create a NEW
  * socket, connect it to the given address, and return the new socket's descriptor.
  */
-void sip_request_connect(struct sip_request_connect *request, struct sip_response *response) {
-	// TODO
+void handle_connect(struct sip_request_connect *request, struct sip_response *response) {
+	int newfd = socket(AF_UNIX, request->socktype, 0);
+
+	if (newfd == -1) {
+		response->rv = -1;
+		response->err = EACCES;
+		return;
+	}
+
+	/* Connect to given address */
+	response->rv = connect(newfd, &request->addr, request->addrlen);
+	response->err = errno;
+
+	if (response->rv == 0) {
+		response->rv = newfd; /* new fd expected on success */
+		response->err = 0;
+	}
 }

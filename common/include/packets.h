@@ -155,6 +155,7 @@ struct sip_request_utimensat {
 struct sip_request_bind {
 	struct sip_header head;
 	struct sockaddr addr;
+	int socktype;			/* needed for server side socket(2) call. */
 	socklen_t addrlen;
 };
 
@@ -162,6 +163,7 @@ struct sip_request_bind {
 struct sip_request_connect {
 	struct sip_header head;
 	struct sockaddr addr;
+	int socktype;			/* needed for server side socket(2) call. */
 	socklen_t addrlen;
 };
 
