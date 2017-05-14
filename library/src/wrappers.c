@@ -938,7 +938,8 @@ sip_wrapper(ssize_t, readlink, const char *pathname, char *buf, size_t bufsiz) {
  */
 sip_wrapper(int, renameat2, int olddirfd, const char *oldpath, int newdirfd, const char *newpath, unsigned int flags) {
 
-    // sip_info("Intercepted renameat2 call with olddirfd: %s, oldpath: %s, newdirfd: %d, newpath: %s, flags: %d\n", olddirfd, oldpath, newdirfd, newpath, flags);
+    sip_info("Intercepted renameat2 call with olddirfd: %d, oldpath: %s, newdirfd: %d, newpath: %s, flags: %d\n",
+    		olddirfd, oldpath, newdirfd, newpath, flags);
 
 	long res = syscall(SYS_renameat2, olddirfd, oldpath, newdirfd, newpath, flags);
 
