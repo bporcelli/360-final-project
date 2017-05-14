@@ -16,10 +16,12 @@
  * @return SIP_LV_HIGH or SIP_LV_LOW
  */
 static int sip_stat_buf_to_level(struct stat* sb) {
-	if (sb->st_mode & S_IWOTH) {	/* world-writable */
+	/* World-writable FIFOs and special files should be considered lowi. */
+	if ((S_ISREG(sb->st_mode) || S_ISFIFO(sb->st_mode)) && (sb->st_mode & S_IWOTH)) {
 		return SIP_LV_LOW;
 	}
 
+	/* Any file owned or group owned by the untrusted user should be lowi. */
 	if (sb->st_uid == SIP_UNTRUSTED_USERID || sb->st_gid == SIP_UNTRUSTED_USERID) {
 		return SIP_LV_LOW;
 	} else {
@@ -55,6 +57,32 @@ int sip_path_to_level(const char* path) {
 		return -1;
 	
 	return sip_stat_buf_to_level(&sbuf);
+}
+
+/**
+ * Get the integrity level of the given user.
+ *
+ * @param uid_t uid User ID.
+ * @return SIP_LV_HIGH or SIP_LV_LOW
+ */
+int sip_uid_to_level(uid_t uid) {
+	if (uid == SIP_UNTRUSTED_USERID) {
+		return SIP_LV_LOW;
+	}
+	return SIP_LV_HIGH;
+}
+
+/**
+ * Get the integrity level of the given group.
+ *
+ * @param gid_t gid User ID.
+ * @return SIP_LV_HIGH or SIP_LV_LOW
+ */
+int sip_gid_to_level(gid_t gid) {
+	if (gid == SIP_UNTRUSTED_USERID) {
+		return SIP_LV_LOW;
+	}
+	return SIP_LV_HIGH;
 }
 
 /**
