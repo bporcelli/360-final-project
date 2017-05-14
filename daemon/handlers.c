@@ -9,3 +9,10 @@ void handle_delegatortest(struct sip_request_test *request, struct sip_response 
 	response->rv = 0;
 	response->err = request->err;
 }
+
+/**
+ * Handler for SYS_openat.
+ */
+void handle_openat(struct sip_request_test *request, struct sip_response *response) {
+	sip_info("received delegated openat request.\n");
+}

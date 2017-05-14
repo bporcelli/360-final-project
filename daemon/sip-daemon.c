@@ -21,6 +21,7 @@
 #include "logger.h"   // Logging
 #include "handlers.h" // Syscall handlers
 #include "packets.h"  // Packet structs
+#include "util.h"     // sip_send_fd
 
 #define DAEMON_MAX_CONNECTION 1000
 
@@ -38,12 +39,14 @@ void *handle_connection(void* arg) {
 	struct sip_response response;
 	ssize_t sent = 0, received = 0;
 	void* packet = NULL;
-	int clientfd = *(int*) arg, pkt_head[2];
+	int clientfd = *(int*) arg, pkt_head[2], respfd;
 	free(arg);
 
 	sip_info("Spawned thread to handle connection with descriptor %d\n", clientfd);
 
 	while (1) {
+
+		respfd = -1; /* fd to include in response (-1 for none) */
 
 		/* Read packet header to determine call number & packet size. */
 	 	received = recv(clientfd, &pkt_head, 2 * sizeof(int), MSG_PEEK);
@@ -69,10 +72,67 @@ void *handle_connection(void* arg) {
 			break;
 		}
 
-		/* Based on call number, execute an appropriate handler. */ 
+		/* Based on call number, execute an appropriate handler. Note that
+		   calls that send back file descriptors need special handling, as
+		   we must sendmsg instead of send to send back the response. */ 
 		switch (pkt_head[0]) {
 			case SYS_delegatortest:
 				handle_delegatortest(packet, &response);
+			break;
+			case SYS_faccessat:
+				// TODO
+			break;
+			case SYS_fchmodat:
+				// TODO
+			break;
+			case SYS_fchownat:
+				// TODO
+			break;
+			case SYS_fstatat:
+				// TODO
+			break;
+			case SYS_statvfs:
+				// TODO
+			break;
+			case SYS_linkat:
+				// TODO
+			break;
+			case SYS_mkdirat:
+				// TODO
+			break;
+			case SYS_mknodat:
+				// TODO
+			break;
+			case SYS_openat:
+				handle_openat(packet, &response);
+				respfd = response.rv;
+			break;
+			case SYS_renameat2:
+				// TODO
+			break;
+			case SYS_symlinkat:
+				// TODO
+			break;
+			case SYS_unlinkat:
+				// TODO
+			break;
+			case SYS_utime:
+				// TODO
+			break;
+			case SYS_utimes:
+				// TODO
+			break;
+			case SYS_utimensat:
+				// TODO
+			break;
+			case SYS_futimens:
+				// TODO
+			break;
+			case SYS_bind:
+				// TODO
+			break;
+			case SYS_connect:
+				// TODO
 			break;
 			default:
 				sip_error("Unhandled delegated syscall: %d\n", pkt_head[0]);
@@ -85,6 +145,13 @@ void *handle_connection(void* arg) {
 		if (sent != sizeof(struct sip_response)) {
 			sip_error("Failed to send response to client: %s\n", strerror(errno));
 			break;
+		}
+
+		/* Send back descriptor if necessary */
+		if (respfd >= 0) {
+			if (sip_send_fd(clientfd, respfd) == 0) {
+				close(respfd);
+			}
 		}
 	}
 
@@ -147,7 +214,7 @@ int main(int argc, char **argv) {
 	   spawn a thread to handle it. */
 	pthread_t tid;
 
-	while (!exit_flag) {
+	while (1) {
 		clientfd = accept(listenfd, (struct sockaddr*)&client_addr, &addrlen);
 
 		if (clientfd < 0) {

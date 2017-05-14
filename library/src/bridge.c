@@ -114,3 +114,45 @@ int sip_delegate_call(void *request, struct sip_response *response) {
 	}
 	return 0;
 }
+
+/**
+ * Special version of sip_delegate_call that expects a file descriptor in the
+ * response. Must be used for calls like openat(2) that return a descriptor.
+ */
+int sip_delegate_call_fd(void *request, struct sip_response *response) {
+
+	int rv = sip_delegate_call(request, response);
+
+	if (rv == 0 && response->err == 0) {	/* success! expect a descriptor. */
+		struct msghdr msg = {0};
+		struct cmsghdr *cmsg;
+		int fd;
+
+		union {
+		   /* ancillary data buffer, wrapped in a union in order to ensure
+		      it is suitably aligned */
+		   char buf[CMSG_SPACE(sizeof(int))];
+		   struct cmsghdr align;
+		} u;
+
+		msg.msg_control = u.buf;
+		msg.msg_controllen = sizeof u.buf;
+
+		if (recvmsg(sockfd, &msg, 0) <= 0) {
+			sip_error("Failed to receive descriptor from helper: %s\n", strerror(errno));
+			return -1;
+		}
+
+		cmsg = CMSG_FIRSTHDR(&msg);
+
+		if (cmsg == NULL) {
+			sip_error("Failed to receive descriptor from helper: msg_control is empty.\n");
+			return -1;
+		}
+
+		fd = *(int *) CMSG_DATA(cmsg);
+
+		/* transparently substitute rv with new fd, leaving errno unchanged */
+		response->rv = fd;
+	}
+}

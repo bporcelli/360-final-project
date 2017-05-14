@@ -3,11 +3,24 @@
 
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/syscall.h>
 #include <limits.h>
 #include <utime.h>
 
 #define SIP_DATA_SZ 50
+#define SYS_fstatat SYS_fstatat64
 #define SYS_delegatortest 400
+#define SYS_statvfs 401
+#define SYS_futimens 402
+
+#define SIP_PREPARE_RESP(varname) struct sip_response varname
+
+/* example use: SIP_PREPARE_PKT(openat, request); */
+#define SIP_PREPARE_PKT(name, vname) 						\
+	struct sip_request_ ##name vname = { 					\
+		.head.size = sizeof(struct sip_request_ ##name), 	\
+		.head.callno = SYS_ ##name							\
+	}														\
 
 struct sip_header {
 	int callno; 			/* syscall number */
@@ -97,9 +110,10 @@ struct sip_request_mknodat {
 };
 
 /* openat */
+/* NOTE: dirfd not used -- will convert to abs. path before delegating. */
 struct sip_request_openat {
 	struct sip_header head;
-	int dirfd;
+	// int dirfd;
 	char file[PATH_MAX];
 	int flags;
 	mode_t mode;

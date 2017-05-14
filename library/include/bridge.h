@@ -5,5 +5,6 @@
 #include "packets.h"
 
 int sip_delegate_call(void *request, struct sip_response *response);
+int sip_delegate_call_fd(void *request, struct sip_response *response);
 
 #endif

@@ -3,11 +3,12 @@
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
+#include <fcntl.h>
+#include <limits.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <sys/un.h>
-#include <unistd.h>
 
 #include "util.h"
 #include "logger.h"
@@ -125,5 +126,73 @@ int sip_is_daemon() {
 	if (resolved != NULL && strcmp(linkpath, SIP_DAEMON_PATH) == 0) {
 		return 1;
 	}
+	return 0;
+}
+
+/**
+ * If the given pathname is relative, interpret it relative to the directory
+ * referred to by dirfd and return the absolute path. If dirfd has the special
+ * value AT_FDCWD and the path is relative, interpret it relative to the current
+ * working directory. If the pathname is absolute, return it unmodified.
+ *
+ * NOTE: The buffer returned by this function is dynamically allocated and must
+ * be freed.
+ */
+char *sip_abs_path(int dirfd, const char *pathname) {
+	if (pathname[0] == '/') { 	/* absolute path */
+		return strdup(pathname);
+	}
+
+	char temppath[PATH_MAX] = {0};
+
+	if (dirfd != AT_FDCWD) {	/* interpret path relative to dirfd */
+		char *cwd = sip_fd_to_path(dirfd);
+		
+		if (cwd != NULL) {
+			strncpy(temppath, cwd, PATH_MAX);
+			free(cwd);
+		}
+	}
+
+	strncat(temppath, pathname, PATH_MAX);
+
+	return realpath(temppath, NULL);
+}
+
+/**
+ * Send descriptor fd over the socket referred to by descriptor sockfd.
+ *
+ * @return 0 on success, -1 on error
+ */
+int sip_send_fd(int sockfd, int fd) {
+	
+	/* prepare struct msghdr */
+	struct msghdr msg = {0};
+	struct cmsghdr *cmsg;
+	int *fdptr;
+
+	union {
+	   /* ancillary data buffer, wrapped in a union in order to ensure
+	      it is suitably aligned */
+	   char buf[CMSG_SPACE(sizeof(int))];
+	   struct cmsghdr align;
+	} u;
+
+	msg.msg_control = u.buf;
+	msg.msg_controllen = sizeof u.buf;
+
+	cmsg = CMSG_FIRSTHDR(&msg);
+	cmsg->cmsg_level = SOL_SOCKET;
+	cmsg->cmsg_type = SCM_RIGHTS;
+	cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+	fdptr = (int *) CMSG_DATA(cmsg);
+	*fdptr = fd;
+
+	/* send */
+	if (sendmsg(sockfd, &msg, 0) <= 0) {
+		sip_error("Failed to send file descriptor: %s\n", strerror(errno));
+		return -1;
+	}
+
 	return 0;
 }

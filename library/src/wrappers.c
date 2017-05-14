@@ -22,6 +22,8 @@
 #include "level.h"
 #include "util.h"
 #include "redirect.h"
+#include "bridge.h"
+#include "packets.h"
 
 // TODO: REVISIT ALL WRAPPERS AND ADD SUPPORT FOR FILE REDIRECTION
 
@@ -640,9 +642,9 @@ sip_wrapper(int, openat, int dirfd, const char * __file, int __oflag, ...) {
 	if (__oflag & O_CREAT || __oflag & O_TMPFILE)
 		mode = va_arg(args, mode_t);
 
-	sip_info("intercepted open call with file=%s, flags=%d, mode=%d\n", __file, __oflag, mode);
+	sip_info("intercepted openat call with file=%s, flags=%d, mode=%d\n", __file, __oflag, mode);
 
-	/* NOTE: Check if the calling process is trusted or untrusted. If untrusted . */
+	/* If a high integrity process tries to open a low integrity file, deny */
 	if(SIP_IS_HIGHI) {
 
 		if(SIP_LV_LOW == sip_path_to_level(__file)) {
@@ -659,12 +661,21 @@ sip_wrapper(int, openat, int dirfd, const char * __file, int __oflag, ...) {
 
 	int res = _openat(dirfd, __file, __oflag, mode);
 
-	/* NOTE: If the calling process is trusted check to see if file exists if so then proceed 
-			 with call. */
-	if(res == -1 && errno == EACCES && SIP_IS_LOWI) {
-		// TODO: SEND REQUEST TO DELEGATOR. UPDATE ERRNO/RV ON RESPONSE.
-		// HOW TO DO THIS WITHOUT COPYING THE PIP SOLUTION ONE-FOR-ONE...?
-		sip_info("Would delegate openat on %s\n", __file);
+	/* If process is low integrity and request fails due to lack of permissions,
+	   delegate to helper. */
+	if(res == -1 && (errno == EACCES || errno == EPERM) && SIP_IS_LOWI) {
+		
+		sip_info("Delegating openat on %s\n", __file);
+
+		__file = sip_abs_path(dirfd, __file); /* to avoid passing dirfd to helper */
+
+		SIP_PREPARE_RESP(response);
+		SIP_PREPARE_PKT(openat, request);
+
+		if (sip_delegate_call_fd(&request, &response) == 0) {
+			res = response.rv;
+			errno = response.err;
+		}
 	}
 	return res;
 }
