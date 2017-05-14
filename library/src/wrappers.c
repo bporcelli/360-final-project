@@ -1009,11 +1009,12 @@ sip_wrapper(int, accept4, int sockfd, struct sockaddr *addr, socklen_t *addrlen,
     								  sip_gid_to_level(peercreds.gid));
 
     	if (sip_is_daemon() || peerlevel == sip_level()) {
+    		sip_info("Allowing accept4 on socket %d: peer levels match.\n", newfd);
     		goto allow;
     	}
 
 deny:
-		sip_error("Denying accept4 on socket %d: peer levels do not match.", newfd);
+		sip_info("Denying accept4 on socket %d: peer levels do not match.", newfd);
 
 		close(newfd);
 		errno = ECONNABORTED;

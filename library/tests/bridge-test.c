@@ -24,9 +24,15 @@ int main(int argc, char** argv) {
 	SIP_PKT_SET(&request, 0, SIP_ARG, long, &arg1);
 	SIP_PKT_SET(&request, 1, SIP_ARG, long, &arg2); // should be returned in errno
 
+	printf("sending syscall request...\n");
+
 	int rv = sip_delegate_call(&request, &response);
 
-	printf("return value is %ld and errno is %d\n", arg1, errno);
+	if (rv == -1) {
+		printf("failed to send request :(\n");
+	} else {
+		printf("return value is %ld and errno is %d\n", arg1, errno);
+	}
 	
 	sip_packet_destroy(&request);
 	return 0;

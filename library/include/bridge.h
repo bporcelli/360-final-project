@@ -3,6 +3,6 @@
 
 #include <sys/types.h>
 
-int sip_delegate_call(long number, struct msghdr *req, struct msghdr *resp);
+int sip_delegate_call(struct msghdr *req, struct msghdr *resp);
 
 #endif

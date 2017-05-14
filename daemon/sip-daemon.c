@@ -8,6 +8,9 @@
 #include <errno.h>
 #include <string.h>
 #include <pthread.h>
+#include <stdlib.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -28,35 +31,75 @@ static int exit_flag = 0;
  *
  * @param void* pointer to client socket descriptor.
  */
-void handle_connection(void* arg) {
-	struct msghdr msg;
-	ssize_t received = 0;
+void *handle_connection(void* arg) {
+	pthread_detach(pthread_self());	/* Let OS reap thread resources */
+
 	int clientfd = *(int*) arg;
 	free(arg);
 
-	while ((received = recvmsg(clientfd, &msg, 0)) > 0) {
-		/* To hold response. */
-		struct msghdr response;
+	sip_info("Spawned thread to handle connection with descriptor %d\n", clientfd);
 
-		/* First arg in packet will be syscall num. */
-		long callnum = SIP_PKT_GET(&msg, 0, long);
+	struct msghdr request;
+	sip_packet_init(&request);
+	long callnum;
 
-		switch (callnum) {
-			case SYS_delegatortest:
-				handle_delegatortest(&msg, &response);
-				if (response != NULL ) {
+	while (1) {
 
-				}
+		/* Initially, we allocate enough space to store the sycall num only. */
+		SIP_PKT_SET(&request, 0, SIP_ARG, long, &callnum);
+
+		/* Peek into message queue to get syscall number. */
+		ssize_t received = recvmsg(clientfd, &request, MSG_PEEK);
+
+		sip_info("Received %ld bytes from client.\n", received);
+
+		if (received == 0) {
+			sip_info("Client closed connection. Exiting thread loop.\n");
+			sip_packet_destroy(&request);
 			break;
-			default:
-				sip_error("Unhandled delegated syscall: %d\n", callnum);
 		}
+
+		sip_info("Received syscall request with number %ld\n", SIP_PKT_GET(&request, 0, long));
+
+		/* Initialize msghdr struct for response. */
+		// struct msghdr response;
+		// sip_packet_init(&response);
+
+		// /* First arg in packet will be syscall num. */
+		// long callnum = SIP_PKT_GET(&msg, 0, long);
+
+		// sip_info("callnum is %ld\n", callnum);
+
+		// switch (callnum) {
+		// 	case SYS_delegatortest:
+		// 		sip_info("Delegator received delegatortest call.\n");
+		// 		handle_delegatortest(&msg, &response);
+		// 	break;
+		// 	default:
+		// 		sip_error("Unhandled delegated syscall: %d\n", callnum);
+		// 		continue;
+		// }
+
+		// /* Send back response */
+		// ssize_t sent = sendmsg(clientfd, &response, 0);
+
+		// if (sent == -1) {
+		// 	sip_error("Failed to send response to client: %s\n", strerror(errno));
+		// 	return NULL; /* TODO: appropriate? */
+		// }
 	}
+
+	sip_packet_destroy(&request);
+
+	sip_info("Exiting thread for descriptor %d.\n", clientfd);
+
+	/* Clean up */
+	close(clientfd);
 }
 
 int main(int argc, char **argv) {
 
-	struct sockaddr_un addr;
+	struct sockaddr_un addr, client_addr;
 
 	int addrlen, listenfd, clientfd, *fdcopy;
 
@@ -77,16 +120,21 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
-	/* Bind to SIP_DAEMON_COMMUNICATION_PATH */
+	/* Bind to SIP_DAEMON_COMMUNICATION_PATH/all */
 	bzero(&addr, sizeof(addr));
 	
-	addr.sun_family = AF_UNIX // socket for local communication
-	addrlen = sizeof(addr.sun_family) + sprintf(addr.sun_path, "%s", SIP_DAEMON_COMMUNICATION_PATH);
+	addr.sun_family = AF_UNIX; // socket for local communication
+	addrlen = sizeof(addr.sun_family) + sprintf(addr.sun_path, "%s/all", SIP_DAEMON_COMMUNICATION_PATH);
+
+	unlink(SIP_DAEMON_COMMUNICATION_PATH "/all"); // allow re-binding when server exits
 
 	if(bind(listenfd, (struct sockaddr*)&addr, addrlen) < 0) {
-		sip_error("Failed to bind socket %d to %s: %s.\n", listenfd, SIP_DAEMON_COMMUNICATION_PATH, strerror(errno));
+		sip_error("Failed to bind socket %d to %s: %s.\n", listenfd, SIP_DAEMON_COMMUNICATION_PATH "/all", strerror(errno));
 		return 1;
 	}
+
+	/* Allow all to connect to socket. */
+	chmod(SIP_DAEMON_COMMUNICATION_PATH "/all", S_IRWXU | S_IRWXG | S_IRWXO);
 
 	/* Listen for connections -- allow up to DAEMON_MAX_CONNECTION pending
 	   connection requests at any given time. */
@@ -97,9 +145,12 @@ int main(int argc, char **argv) {
 
 	/* Wait for new connections in an infinite loop. When a connection arrives,
 	   spawn a thread to handle it. */
+	pthread_t tid;
+
 	while (!exit_flag) {
-		clientfd = accept(listenfd, NULL, NULL);
-		
+		clientfd = accept(listenfd, (struct sockaddr*)&client_addr, &addrlen);
+		sip_info("Daemon received a connection request!\n");
+
 		if (clientfd < 0) {
 			sip_error("Accept failed: %s. Aborting.\n", strerror(errno));
 			exit(1);
@@ -114,12 +165,15 @@ int main(int argc, char **argv) {
 
 		if ((fdcopy = malloc(sizeof(int))) == NULL) {
 			sip_error("Couldn't accept connection: out of memory.\n");
-			continue; /* maybe some memory will free up? */
+			continue; /* Maybe some memory will free up? */
 		}
 		*fdcopy = clientfd;
 		
-		pthread_create(NULL, NULL, &handle_connection, fdcopy);
+		pthread_create(&tid, NULL, &handle_connection, fdcopy);
 	}
+
+	/* Clean up */
+	close(listenfd);
 
 	return 0;
 }

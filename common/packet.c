@@ -81,6 +81,9 @@ void sip_packet_set(struct msghdr *pkt, int index, struct sip_arg arg) {
 
 		memcpy((int *) CMSG_DATA(cmsg), arg.data, sizeof(int));
 	}
+
+	/* Increase arg count */
+	pkt->msg_iovlen++;
 }
 
 /**

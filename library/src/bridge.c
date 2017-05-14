@@ -19,12 +19,12 @@ static int sockfd = -1;
 static void sip_delegate_start() {
 	pid_t pid;
 
-	char *args[2] = {SIP_DAEMON_COMMUNICATION_PATH, NULL};
+	char *args[2] = {SIP_DAEMON_PATH, NULL};
 
 	if ((pid = fork()) == 0) {
-		sip_info("Starting delegator with process id %lu\n", pid);
 		execv(SIP_DAEMON_PATH, args);
 		sip_error("Failed to start daemon: %s\n", strerror(errno));
+		return;
 	}
 
 	/* Allow time for helper to bind socket. */
@@ -60,10 +60,11 @@ static int sip_delegate_connect() {
 	/* Get address to connect to. */
 	bzero(&addr, sizeof(addr));
 	addr.sun_family = AF_UNIX;
-	sprintf(addr.sun_path, SIP_DAEMON_COMMUNICATION_PATH);
+	sprintf(addr.sun_path, SIP_DAEMON_COMMUNICATION_PATH "/all");
 
 	/* Attempt connection up to 3 times. */
 	do {
+		sip_info("Attempting connection client-side.\n");
 		conn = connect(sockfd, (struct sockaddr*) &addr, sizeof(addr));
 		if (conn < 0) {
 			sip_delegate_start();
@@ -76,6 +77,8 @@ static int sip_delegate_connect() {
 		sip_error("Failed to start delegator: %s\n", strerror(errno));
 		return 0;
 	}
+
+	sip_info("Connection on client side successful!\n");
 
 	return 1;
 }
@@ -94,16 +97,22 @@ static int sip_delegate_get_response(struct msghdr *request, struct msghdr *resp
 		return -1;
 	}
 
-	sent = sendmsg(sockfd, request, MSG_DONTWAIT);
+	sip_info("About to call sendmsg. socket is %d, request is %p.\n", sockfd, request);
+	sip_info("iov_len for request is: %zu\n", request->msg_iovlen);
+	errno = 0;
+
+	sent = sendmsg(sockfd, request, 0);
 
 	if (sent == -1) {
 		sip_error("Failed to send syscall request: %s\n", strerror(errno));
 		return -1;
+	} else if (sent == 0) {
+		sip_error("No data was sent. Error was: %s\n", strerror(errno));
 	}
 
 	sip_info("Sent %lu bytes to the helper.\n", sent);
-	received = recvmsg(sockfd, response, 0);
-	sip_info("Received %lu bytes from the helper.\n", received);
+	received = recvmsg(sockfd, response, 0); // TODO: RETURNING BEFORE ACCEPT()
+	sip_info("Received %ld bytes from the helper.\n", received);
 
 	if (received <= 0) {
 		sip_error("Failed to read syscall response: %s\n", strerror(errno));
@@ -120,14 +129,15 @@ static int sip_delegate_get_response(struct msghdr *request, struct msghdr *resp
  * On success, the function returns the return value obtained from the helper,
  * sets errno, and copies the response into response.
  *
- * @param long number Syscall number.
  * @param struct msghdr* request
  * @param struct msghdr* response
  * @return int
  */
-int sip_delegate_call(long number, struct msghdr *request, struct msghdr *response) {
+int sip_delegate_call(struct msghdr *request, struct msghdr *response) {
 	/* Attempt delegated call */
 	int ret = sip_delegate_get_response(request, response);
+
+	sip_info("return from sip_delegate_get_response is: %d\n", ret);
 
 	if (ret == -1) {
 		sip_error("Failed to send delegated call: %s\n", strerror(errno));

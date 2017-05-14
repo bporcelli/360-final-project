@@ -28,7 +28,9 @@ static void sip_log(char* path, const char *format, va_list args) {
 	char sip_log_msg[MAX_MSG_LEN];
 
 	/* Attempt to open file. */
-	logfd = syscall(SYS_open, path, O_WRONLY|O_APPEND);
+	logfd = -1;
+	// TODO: RE-ENABLE
+	// logfd = syscall(SYS_open, path, O_WRONLY|O_APPEND);
 
 	/* If file doesn't exist, create it. Temporarily set umask to 0 so we can
 	 * make it world-writable. */
