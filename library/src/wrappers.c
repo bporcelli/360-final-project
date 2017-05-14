@@ -39,6 +39,20 @@ sip_wrapper(int, faccessat, int dirfd, const char *pathname, int mode, int flags
 
 	sip_info("Intercepted faccessat call with dirfd: %d, path: %s, mode: %d, flags: %d\n", dirfd, pathname, mode, flags);
 
+	/* TODO: To avoid compiler warnings, created a copy of pathname we can modify */
+ 	//  char *redirected_path = strdup(pathname);
+
+ 	//  if (redirected_path == NULL) {
+ 	//  	sip_error("readlinkat aborted: out of memory.\n");
+ 	//    	return -1;
+ 	//  }
+
+ 	//  /* Redirect pathname before call if appropriate */
+    //  if(SIP_LV_LOW) {
+    	
+	// 		redirected_path = sip_convert_to_redirected_path(redirected_path);
+	// 	}
+
 	if (SIP_IS_HIGHI) {
 
 		int read_or_exec = (mode & R_OK) || (mode & X_OK);
@@ -51,15 +65,24 @@ sip_wrapper(int, faccessat, int dirfd, const char *pathname, int mode, int flags
 		}
 	}
 
-	_faccessat = sip_find_sym("faccessat");
 
-	int rv = _faccessat(dirfd, pathname, mode, flags);
+	__faccessat = sip_find_sym("faccessat");
+
+	/* TODO: change pathname to redirected_path */
+	int rv = __faccessat(dirfd, pathname, mode, flags);
 
 	if (rv == -1 && errno == EACCES && SIP_IS_LOWI) {
 		// TODO: SEND REQUEST TO DELEGATOR. UPDATE ERRNO/RV ON RESPONSE.
 		// HOW TO DO THIS WITHOUT COPYING THE PIP SOLUTION ONE-FOR-ONE...?
 		sip_info("Would delegate faccessat on %s\n", pathname);
 	}
+
+	// TODO: if(rv > 0 && sip_is_redirected(pathname)) {
+ 	// 		char* orig_path = sip_revert_path(pathname);
+ 	// 	   	strcpy(pathname, orig_path);
+ 	// 	   	return strlen(orig_path) - 1; 	/* exclude null terminator */
+ 	// 	}
+ 	//free(redirected_path);
 	return rv;
 }
 
@@ -92,14 +115,36 @@ sip_wrapper(int, fchmodat, int dirfd, const char *pathname, mode_t mode, int fla
 
 	sip_info("Intercepted fchmodat call with dirfd: %d, path: %s, mode: %d, flags: %d\n", dirfd, pathname, mode, flags);
 
-	_fchmodat = sip_find_sym("fchmodat");
+	/* TODO: To avoid compiler warnings, created a copy of pathname we can modify */
+ 	//  char *redirected_path = strdup(pathname);
+
+ 	//  if (redirected_path == NULL) {
+ 	//  	sip_error("readlinkat aborted: out of memory.\n");
+ 	//    	return -1;
+ 	//  }
+
+ 	//  /* Redirect pathname before call if appropriate */
+    //  if(SIP_LV_LOW) {
+    	
+	// 		redirected_path = sip_convert_to_redirected_path(redirected_path);
+	// 	}
+
+	__fchmodat = sip_find_sym("fchmodat");
 	
-	int rv = _fchmodat(dirfd, pathname, mode, flags);
+	/* TODO: change pathname to redirected_path */
+	int rv = __fchmodat(dirfd, pathname, mode, flags);
 
 	if (rv == -1 && (errno == EACCES || errno == EPERM) && SIP_IS_LOWI) {
 		// TODO: SEND REQUEST TO DELEGATOR. UPDATE ERRNO/RV ON RESPONSE.
 		sip_info("Would delegate faccessat on %s\n", pathname);
 	}
+
+	// TODO: if(rv > 0 && sip_is_redirected(pathname)) {
+ 	// 		char* orig_path = sip_revert_path(pathname);
+ 	// 	   	strcpy(pathname, orig_path);
+ 	// 	   	return strlen(orig_path) - 1; 	/* exclude null terminator */
+ 	// 	}
+ 	//free(redirected_path);
 	return rv;
 }
 
@@ -152,20 +197,43 @@ sip_wrapper(int, fchownat, int dirfd, const char *pathname, uid_t owner, gid_t g
 		sip_info("Blocked attempt to upgrade file %s\n", pathname);
 		errno = EACCES;
 		return -1;
-	} else if (sip_level_min(glevel, ulevel) < flevel && SIP_IS_LOWI) {
+	} 
+	else if (sip_level_min(glevel, ulevel) < flevel && SIP_IS_LOWI) {
 		sip_info("Blocked attempt to downgrade file %s\n", pathname);
 		errno = EACCES;
 		return -1;
 	}
 
+	/* TODO: To avoid compiler warnings, created a copy of pathname we can modify */
+ 	//  char *redirected_path = strdup(pathname);
+
+ 	//  if (redirected_path == NULL) {
+ 	//  	sip_error("readlinkat aborted: out of memory.\n");
+ 	//    	return -1;
+ 	//  }
+
+ 	//  /* Redirect pathname before call if appropriate */
+    //  if(SIP_LV_LOW) {
+    	
+	// 		redirected_path = sip_convert_to_redirected_path(redirected_path);
+	// 	}
+
 	_fchownat = sip_find_sym("fchownat");
 
+	// TODO: Change pathname to redirected_path
 	int rv = _fchownat(dirfd, pathname, owner, group, flags);
 
 	if (rv == -1 && (errno == EACCES || errno == EPERM) && SIP_IS_LOWI) {
 		// TODO: SEND REQUEST TO DELEGATOR. UPDATE ERRNO/RV ON RESPONSE.
 		sip_info("Would delegate fchownat on %s\n", pathname);
 	}
+
+	// TODO: if(rv > 0 && sip_is_redirected(pathname)) {
+ 	// 	char* orig_path = sip_revert_path(pathname);
+ 	// 	   	strcpy(pathname, orig_path);
+ 	// 	   	return strlen(orig_path) - 1; 	/* exclude null terminator */
+ 	// 	}
+ 	//free(redirected_path);
 	return rv;
 }
 
@@ -181,9 +249,31 @@ sip_wrapper(int, fchown, int fd, uid_t owner, gid_t group) {
 
 	sip_info("in fchown. resolved fd %d to path %s\n", fd, path);
 
+	/* TODO: To avoid compiler warnings, created a copy of pathname we can modify */
+ 	//  char *redirected_path = strdup(pathname);
+
+ 	//  if (redirected_path == NULL) {
+ 	//  	sip_error("readlinkat aborted: out of memory.\n");
+ 	//    	return -1;
+ 	//  }
+
+ 	//  /* Redirect pathname before call if appropriate */
+    //  if(SIP_LV_LOW) {
+    	
+	// 		redirected_path = sip_convert_to_redirected_path(redirected_path);
+	// 	}
+
+	// TODO: change path to redirected_path
 	int res = fchownat(AT_FDCWD, path, owner, group, 0);
 
+	// TODO: if(res > 0 && sip_is_redirected(pathname)) {
+ 	// 	char* orig_path = sip_revert_path(pathname);
+ 	// 	   	strcpy(pathname, orig_path);
+ 	// 	   	return strlen(orig_path) - 1; 	/* exclude null terminator */
+ 	// 	}
+
 	free(path);
+	//free(redirected_path);
 	return res;
 }
 
@@ -374,19 +464,37 @@ sip_wrapper(int, __fxstatat, int ver, int dirfd, const char *pathname, struct st
 
 	sip_info("Intercepted fstatat call with dirfd: %d, path: %s, flags: %d\n", dirfd, pathname, flags);
 
-	if (SIP_IS_LOWI) {
-		// TODO: REDIRECT IF NECESSARY. SOMETHING LIKE
-		// *pathname = sip_get_redirected_path(pathname);
-	}
+	/* TODO: To avoid compiler warnings, created a copy of pathname we can modify */
+ 	//  char *redirected_path = strdup(pathname);
+
+ 	//  if (redirected_path == NULL) {
+ 	//  	sip_error("readlinkat aborted: out of memory.\n");
+ 	//    	return -1;
+ 	//  }
+
+ 	//  /* Redirect pathname before call if appropriate */
+    //  if(SIP_LV_LOW) {
+    	
+	// 		redirected_path = sip_convert_to_redirected_path(redirected_path);
+	// 	}
 
 	___fxstatat = sip_find_sym("__fxstatat");
 
+	// TODO: change path to redirected_path
 	int rv = ___fxstatat(ver, dirfd, pathname, statbuf, flags);
 
 	if (rv == -1 && errno == EACCES && SIP_IS_LOWI) {
 		// TODO: FORWARD REQUEST TO DELEGATOR.
 		sip_info("Would forward __fxstatat request with pathname %s\n", pathname);
 	}
+
+	// TODO: if(res > 0 && sip_is_redirected(pathname)) {
+ 	// 	char* orig_path = sip_revert_path(pathname);
+ 	// 	   	strcpy(pathname, orig_path);
+ 	// 	   	return strlen(orig_path) - 1; 	/* exclude null terminator */
+ 	// 	}
+	//free(redirected_path);
+
 	return rv;
 }
 
@@ -438,14 +546,28 @@ sip_wrapper(int, __lxstat, int ver, const char *pathname, struct stat *statbuf) 
 sip_wrapper(int, fstatvfs, int fd, struct fstatvfs *buf) {
 
 	sip_info("Intercepted fstatfs call with fd: %d\n", fd);
-	
-	if (SIP_IS_LOWI) {
 
-		*fd = sip_convert_fd_if(*fd); 
-	}
+	//char* path = sip_fd_to_path(fd);
+
+	/* TODO: To avoid compiler warnings, created a copy of pathname we can modify */
+ 	//  char *redirected_path = strdup(path);
+
+ 	//  if (redirected_path == NULL) {
+ 	//  	sip_error("readlinkat aborted: out of memory.\n");
+ 	//    	return -1;
+ 	//  }
+
+ 	//  /* Redirect pathname before call if appropriate */
+    //  if(SIP_LV_LOW) {
+    	
+	// 		redirected_path = sip_convert_to_redirected_path(redirected_path);
+	// 	}
+
+	//int *rfd = path;
 
 	___fstatvfs = sip_find_sym("__fstatvfs");
 
+	//TODO: change fd to rfd for redirected 
     int res == ___statvfs(fd, buf);
 
     if(sip_is_redirect(buf) == 1) {
@@ -458,6 +580,13 @@ sip_wrapper(int, fstatvfs, int fd, struct fstatvfs *buf) {
 		sip_info("Would forward __statvfs request with path %s\n", fd);
 	}
 
+	// TODO: if(res > 0 && sip_is_redirected(pathname)) {
+ 	// 	char* orig_path = sip_revert_path(pathname);
+ 	// 	   	strcpy(pathname, orig_path);
+ 	// 	   	return strlen(orig_path) - 1; 	/* exclude null terminator */
+ 	// 	}
+	//free(path);
+	//free(rfd);
 	return buf;
 }
 
@@ -476,13 +605,23 @@ sip_wrapper(int, statvfs, const char *path, struct statvfs *buf) {
 
 	sip_info("Intercepted statfs call with path: %s\n", path);
 	
-	if (SIP_IS_LOWI) {
+	/* TODO: To avoid compiler warnings, created a copy of pathname we can modify */
+ 	//  char *redirected_path = strdup(path);
 
-		*path = sip_convert_if(path); 
-	}
+ 	//  if (redirected_path == NULL) {
+ 	//  	sip_error("readlinkat aborted: out of memory.\n");
+ 	//    	return -1;
+ 	//  }
+
+ 	//  /* Redirect pathname before call if appropriate */
+    //  if(SIP_LV_LOW) {
+    	
+	// 		redirected_path = sip_convert_to_redirected_path(redirected_path);
+	// 	}
 
 	___statvfs = sip_find_sym("__statvfs");
 
+	//TODO: Change path to redirected_path
     int res == ___statvfs(path, buf);
 
     if(sip_is_redirect(buf) == 1) {
@@ -495,6 +634,12 @@ sip_wrapper(int, statvfs, const char *path, struct statvfs *buf) {
 		sip_info("Would forward __statvfs request with path %s\n", path);
 	}
 
+	// TODO: if(res > 0 && sip_is_redirected(pathname)) {
+ 	// 	char* orig_path = sip_revert_path(pathname);
+ 	// 	   	strcpy(pathname, orig_path);
+ 	// 	   	return strlen(orig_path) - 1; 	/* exclude null terminator */
+ 	// 	}
+	//free(redirected_path);
 	return buf;
 }
 
@@ -724,8 +869,8 @@ sip_wrapper(ssize_t, readlinkat, int dirfd, const char *pathname, char *buf, siz
 
     /* Redirect pathname before call if appropriate */
     if(SIP_LV_LOW) {
-		// TODO
-		// redirected_path = sip_convert_to_redirected_path(redirected_path);
+
+		//redirected_path = sip_convert_to_redirected_path(redirected_path);
 	}
 
     __readlinkat = sip_find_sym("readlinkat");
