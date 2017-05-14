@@ -1,15 +1,14 @@
 #include <sys/types.h>
 #include <sys/socket.h>
-#include <sys/uio.h>
 #include <sys/un.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
 #include <stdio.h>
-#include "packet.h"
 #include "logger.h"
 #include "common.h"
+#include "packets.h"
 
 static int sockfd = -1;
 
@@ -19,12 +18,12 @@ static int sockfd = -1;
 static void sip_delegate_start() {
 	pid_t pid;
 
-	char *args[2] = {SIP_DAEMON_COMMUNICATION_PATH, NULL};
+	char *args[2] = {SIP_DAEMON_PATH, NULL};
 
 	if ((pid = fork()) == 0) {
-		sip_info("Starting delegator with process id %lu\n", pid);
 		execv(SIP_DAEMON_PATH, args);
 		sip_error("Failed to start daemon: %s\n", strerror(errno));
+		return;
 	}
 
 	/* Allow time for helper to bind socket. */
@@ -60,7 +59,7 @@ static int sip_delegate_connect() {
 	/* Get address to connect to. */
 	bzero(&addr, sizeof(addr));
 	addr.sun_family = AF_UNIX;
-	sprintf(addr.sun_path, SIP_DAEMON_COMMUNICATION_PATH);
+	sprintf(addr.sun_path, SIP_DAEMON_COMMUNICATION_PATH "/all");
 
 	/* Attempt connection up to 3 times. */
 	do {
@@ -81,29 +80,33 @@ static int sip_delegate_connect() {
 }
 
 /**
- * Sends a syscall request to the trusted helper and gets the response.
+ * This function can be used to delegate a syscall to the trusted helper. It
+ * accepts a pointer to the data to send (one of the structs in packets.h), a
+ * the number of bytes to send, and a pointer to a sip_response struct. On
+ * error, it returns -1. On success, it returns 0 and copies the response to
+ * the response buffer.
  *
- * @param struct msghdr* request
- * @param struct msghdr* response
- * @return int 0 on success, -1 on error.
+ * @param  void* request
+ * @param  struct sip_response* response
+ * @return int -1 on error, 0 on success.
  */
-static int sip_delegate_get_response(struct msghdr *request, struct msghdr *response) {
+int sip_delegate_call(void *request, struct sip_response *response) {
+	
+	struct sip_header *head = (struct sip_header*) request;
 	ssize_t sent, received;
 
 	if (!sip_delegate_connect()) {
 		return -1;
 	}
 
-	sent = sendmsg(sockfd, request, MSG_DONTWAIT);
+	sent = send(sockfd, request, head->size, 0);
 
 	if (sent == -1) {
 		sip_error("Failed to send syscall request: %s\n", strerror(errno));
 		return -1;
 	}
 
-	sip_info("Sent %lu bytes to the helper.\n", sent);
-	received = recvmsg(sockfd, response, 0);
-	sip_info("Received %lu bytes from the helper.\n", received);
+	received = recv(sockfd, response, sizeof(struct sip_response), 0);
 
 	if (received <= 0) {
 		sip_error("Failed to read syscall response: %s\n", strerror(errno));
@@ -113,29 +116,43 @@ static int sip_delegate_get_response(struct msghdr *request, struct msghdr *resp
 }
 
 /**
- * This function can be used to delegate a syscall to the trusted helper. It
- * accepts a syscall number and two pointers to msghdr structs. The first is
- * the request, and the second is used to store the response.
- *
- * On success, the function returns the return value obtained from the helper,
- * sets errno, and copies the response into response.
- *
- * @param long number Syscall number.
- * @param struct msghdr* request
- * @param struct msghdr* response
- * @return int
+ * Special version of sip_delegate_call that expects a file descriptor in the
+ * response. Must be used for calls like openat(2) that return a descriptor.
  */
-int sip_delegate_call(long number, struct msghdr *request, struct msghdr *response) {
-	/* Attempt delegated call */
-	int ret = sip_delegate_get_response(request, response);
+int sip_delegate_call_fd(void *request, struct sip_response *response) {
 
-	if (ret == -1) {
-		sip_error("Failed to send delegated call: %s\n", strerror(errno));
-		return -1;
+	int rv = sip_delegate_call(request, response);
+
+	if (rv == 0 && response->err == 0) {	/* success! expect a descriptor. */
+		struct msghdr msg = {0};
+		struct cmsghdr *cmsg;
+		int fd;
+
+		union {
+		   /* ancillary data buffer, wrapped in a union in order to ensure
+		      it is suitably aligned */
+		   char buf[CMSG_SPACE(sizeof(int))];
+		   struct cmsghdr align;
+		} u;
+
+		msg.msg_control = u.buf;
+		msg.msg_controllen = sizeof u.buf;
+
+		if (recvmsg(sockfd, &msg, 0) <= 0) {
+			sip_error("Failed to receive descriptor from helper: %s\n", strerror(errno));
+			return -1;
+		}
+
+		cmsg = CMSG_FIRSTHDR(&msg);
+
+		if (cmsg == NULL) {
+			sip_error("Failed to receive descriptor from helper: msg_control is empty.\n");
+			return -1;
+		}
+
+		fd = *(int *) CMSG_DATA(cmsg);
+
+		/* transparently substitute rv with new fd, leaving errno unchanged */
+		response->rv = fd;
 	}
-
-	/* Set response value and errno -- leave it to the caller to extract
-	   any other needed values in the response. */
-	errno = SIP_PKT_GET(response, 1, int);
-	return SIP_PKT_GET(response, 0, int);
 }

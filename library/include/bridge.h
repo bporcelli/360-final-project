@@ -2,7 +2,9 @@
 #define _SIP_COMM_H
 
 #include <sys/types.h>
+#include "packets.h"
 
-int sip_delegate_call(long number, struct msghdr *req, struct msghdr *resp);
+int sip_delegate_call(void *request, struct sip_response *response);
+int sip_delegate_call_fd(void *request, struct sip_response *response);
 
 #endif

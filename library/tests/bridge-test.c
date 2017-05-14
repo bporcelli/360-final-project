@@ -9,25 +9,25 @@
 #include <sys/socket.h>
 #include <stdio.h>
 #include <errno.h>
-#include "packet.h"
+#include "packets.h"
 #include "bridge.h"
 
 int main(int argc, char** argv) {
-	struct msghdr request;
-	struct msghdr response;
 
-	sip_packet_init(&request);
-	
-	long arg1 = SYS_delegatortest;
-	long arg2 = 42;
+	struct sip_response response;
+	struct sip_request_test request;
 
-	SIP_PKT_SET(&request, 0, SIP_ARG, long, &arg1);
-	SIP_PKT_SET(&request, 1, SIP_ARG, long, &arg2); // should be returned in errno
+	request.head.callno = SYS_delegatortest;
+	request.head.size = sizeof(struct sip_request_test);
+	request.err = 42;
 
 	int rv = sip_delegate_call(&request, &response);
 
-	printf("return value is %ld and errno is %d\n", arg1, errno);
-	
-	sip_packet_destroy(&request);
+	if (rv == -1) {
+		printf("failed to send request :(\n");
+	} else {
+		printf("rv is %d, errno is %d.\n", response.rv, response.err);
+	}
+
 	return 0;
 }

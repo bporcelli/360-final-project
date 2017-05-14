@@ -45,17 +45,17 @@ char *sip_convert_to_redirected_path(char *pathname) {
 	}
 }
 
-int *sip_convert_fd_if(int *fd) {
+// int *sip_convert_fd_if(int *fd) {
 
-	int *test = sip_build_redirect_path(*fd);
+// 	int *test = sip_build_redirect_path(*fd);
 
-	if(access(test, F_OK) != -1) {
+// 	if(access(test, F_OK) != -1) {
 		
-		return test;
-	}
-	else {
+// 		return test;
+// 	}
+// 	else {
 
-		return test;
-	}
-}
+// 		return test;
+// 	}
+// }
 
