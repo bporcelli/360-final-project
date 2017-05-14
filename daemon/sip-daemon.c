@@ -39,8 +39,11 @@ void *handle_connection(void* arg) {
 
 	sip_info("Spawned thread to handle connection with descriptor %d\n", clientfd);
 
-	struct msghdr request;
+	struct msghdr request, response;
+
 	sip_packet_init(&request);
+	sip_packet_init(&response);
+
 	long callnum;
 
 	while (1) {
@@ -51,45 +54,45 @@ void *handle_connection(void* arg) {
 		/* Peek into message queue to get syscall number. */
 		ssize_t received = recvmsg(clientfd, &request, MSG_PEEK);
 
-		sip_info("Received %ld bytes from client.\n", received);
-
 		if (received == 0) {
 			sip_info("Client closed connection. Exiting thread loop.\n");
-			sip_packet_destroy(&request);
 			break;
 		}
 
-		sip_info("Received syscall request with number %ld\n", SIP_PKT_GET(&request, 0, long));
+		sip_info("Received syscall request with number %ld. Entering switch.\n", callnum);
 
-		/* Initialize msghdr struct for response. */
-		// struct msghdr response;
-		// sip_packet_init(&response);
+		/* Based on call number, initialize request struct with enough space
+		   for all args. Then, re-read from message queue and build response. */
+		switch (callnum) {
+			case SYS_delegatortest:
+				sip_info("Delegator received delegatortest call.\n");
+				
+				long arg1, arg2;
+				
+				SIP_PKT_SET(&request, 1, SIP_ARG, long, &arg1);
+				SIP_PKT_SET(&request, 2, SIP_ARG, long, &arg2);
+				
+				if (recvmsg(clientfd, &request, 0) > 0)
+					handle_delegatortest(&request, &response);
+				else
+					sip_error("Couldn't re-read message: %s\n", strerror(errno));
+			break;
+			default:
+				sip_error("Unhandled delegated syscall: %d\n", callnum);
+				continue;
+		}
 
-		// /* First arg in packet will be syscall num. */
-		// long callnum = SIP_PKT_GET(&msg, 0, long);
+		/* Send back response */
+		ssize_t sent = sendmsg(clientfd, &response, 0);
 
-		// sip_info("callnum is %ld\n", callnum);
-
-		// switch (callnum) {
-		// 	case SYS_delegatortest:
-		// 		sip_info("Delegator received delegatortest call.\n");
-		// 		handle_delegatortest(&msg, &response);
-		// 	break;
-		// 	default:
-		// 		sip_error("Unhandled delegated syscall: %d\n", callnum);
-		// 		continue;
-		// }
-
-		// /* Send back response */
-		// ssize_t sent = sendmsg(clientfd, &response, 0);
-
-		// if (sent == -1) {
-		// 	sip_error("Failed to send response to client: %s\n", strerror(errno));
-		// 	return NULL; /* TODO: appropriate? */
-		// }
+		if (sent == -1) {
+			sip_error("Failed to send response to client: %s\n", strerror(errno));
+			return NULL; /* TODO: appropriate? */
+		}
 	}
 
 	sip_packet_destroy(&request);
+	sip_packet_destroy(&response);
 
 	sip_info("Exiting thread for descriptor %d.\n", clientfd);
 

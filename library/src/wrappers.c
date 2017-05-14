@@ -38,7 +38,7 @@
 
 sip_wrapper(int, faccessat, int dirfd, const char *pathname, int mode, int flags) {
 
-	sip_info("Intercepted faccessat call with dirfd: %d, path: %s, mode: %d, flags: %d\n", dirfd, pathname, mode, flags);
+	// sip_info("Intercepted faccessat call with dirfd: %d, path: %s, mode: %d, flags: %d\n", dirfd, pathname, mode, flags);
 
 	if (SIP_IS_HIGHI) {
 
@@ -46,7 +46,7 @@ sip_wrapper(int, faccessat, int dirfd, const char *pathname, int mode, int flags
 
 		if (SIP_LV_LOW == sip_path_to_level(pathname) && read_or_exec) {
 
-			sip_info("Denied read/exec permissions on low integrity file %s\n", pathname);
+			// sip_info("Denied read/exec permissions on low integrity file %s\n", pathname);
 			errno = EACCES;
 			return -1;
 		}
@@ -59,7 +59,7 @@ sip_wrapper(int, faccessat, int dirfd, const char *pathname, int mode, int flags
 	if (rv == -1 && errno == EACCES && SIP_IS_LOWI) {
 		// TODO: SEND REQUEST TO DELEGATOR. UPDATE ERRNO/RV ON RESPONSE.
 		// HOW TO DO THIS WITHOUT COPYING THE PIP SOLUTION ONE-FOR-ONE...?
-		sip_info("Would delegate faccessat on %s\n", pathname);
+		// sip_info("Would delegate faccessat on %s\n", pathname);
 	}
 	return rv;
 }
@@ -91,7 +91,7 @@ sip_wrapper(int, access, const char *pathname, int mode) {
 
 sip_wrapper(int, fchmodat, int dirfd, const char *pathname, mode_t mode, int flags) {
 
-	sip_info("Intercepted fchmodat call with dirfd: %d, path: %s, mode: %d, flags: %d\n", dirfd, pathname, mode, flags);
+	// sip_info("Intercepted fchmodat call with dirfd: %d, path: %s, mode: %d, flags: %d\n", dirfd, pathname, mode, flags);
 
 	_fchmodat = sip_find_sym("fchmodat");
 	
@@ -99,7 +99,7 @@ sip_wrapper(int, fchmodat, int dirfd, const char *pathname, mode_t mode, int fla
 
 	if (rv == -1 && (errno == EACCES || errno == EPERM) && SIP_IS_LOWI) {
 		// TODO: SEND REQUEST TO DELEGATOR. UPDATE ERRNO/RV ON RESPONSE.
-		sip_info("Would delegate faccessat on %s\n", pathname);
+		// sip_info("Would delegate faccessat on %s\n", pathname);
 	}
 	return rv;
 }
@@ -143,18 +143,18 @@ sip_wrapper(int, fchmod, int fd, mode_t mode) {
 
 sip_wrapper(int, fchownat, int dirfd, const char *pathname, uid_t owner, gid_t group, int flags) {
 
-	sip_info("Intercepted fchownat call with dirfd: %d, path: %s, uid: %lu, gid: %lu, flags: %d\n", dirfd, pathname, owner, group, flags);
+	// sip_info("Intercepted fchownat call with dirfd: %d, path: %s, uid: %lu, gid: %lu, flags: %d\n", dirfd, pathname, owner, group, flags);
 
 	int flevel = sip_path_to_level(pathname);
 	int ulevel = sip_uid_to_level(owner);
 	int glevel = sip_gid_to_level(group);
 
 	if (sip_level_min(glevel, ulevel) > flevel) {
-		sip_info("Blocked attempt to upgrade file %s\n", pathname);
+		// sip_info("Blocked attempt to upgrade file %s\n", pathname);
 		errno = EACCES;
 		return -1;
 	} else if (sip_level_min(glevel, ulevel) < flevel && SIP_IS_LOWI) {
-		sip_info("Blocked attempt to downgrade file %s\n", pathname);
+		// sip_info("Blocked attempt to downgrade file %s\n", pathname);
 		errno = EACCES;
 		return -1;
 	}
@@ -165,7 +165,7 @@ sip_wrapper(int, fchownat, int dirfd, const char *pathname, uid_t owner, gid_t g
 
 	if (rv == -1 && (errno == EACCES || errno == EPERM) && SIP_IS_LOWI) {
 		// TODO: SEND REQUEST TO DELEGATOR. UPDATE ERRNO/RV ON RESPONSE.
-		sip_info("Would delegate fchownat on %s\n", pathname);
+		// sip_info("Would delegate fchownat on %s\n", pathname);
 	}
 	return rv;
 }
@@ -180,7 +180,7 @@ sip_wrapper(int, fchown, int fd, uid_t owner, gid_t group) {
 	if (path == NULL)
 		return -1;
 
-	sip_info("in fchown. resolved fd %d to path %s\n", fd, path);
+	// sip_info("in fchown. resolved fd %d to path %s\n", fd, path);
 
 	int res = fchownat(AT_FDCWD, path, owner, group, 0);
 
@@ -348,7 +348,7 @@ sip_wrapper(int, getgroups, int size, gid_t list[]) {
 sip_wrapper(int, execve, const char *filename, char *const argv[], char *const envp[]) {
 
 	if (SIP_IS_HIGHI && SIP_LV_LOW == sip_path_to_level(filename)) {
-		sip_info("Blocking attempt to execute low integrity file %s\n", filename);
+		// sip_info("Blocking attempt to execute low integrity file %s\n", filename);
 		errno = EACCES;
 		return -1;
 	}
@@ -373,7 +373,7 @@ sip_wrapper(int, execve, const char *filename, char *const argv[], char *const e
 
 sip_wrapper(int, __fxstatat, int ver, int dirfd, const char *pathname, struct stat *statbuf, int flags) {
 
-	sip_info("Intercepted fstatat call with dirfd: %d, path: %s, flags: %d\n", dirfd, pathname, flags);
+	// sip_info("Intercepted fstatat call with dirfd: %d, path: %s, flags: %d\n", dirfd, pathname, flags);
 
 	if (SIP_IS_LOWI) {
 		// TODO: REDIRECT IF NECESSARY. SOMETHING LIKE
@@ -386,7 +386,7 @@ sip_wrapper(int, __fxstatat, int ver, int dirfd, const char *pathname, struct st
 
 	if (rv == -1 && errno == EACCES && SIP_IS_LOWI) {
 		// TODO: FORWARD REQUEST TO DELEGATOR.
-		sip_info("Would forward __fxstatat request with pathname %s\n", pathname);
+		// sip_info("Would forward __fxstatat request with pathname %s\n", pathname);
 	}
 	return rv;
 }
@@ -437,7 +437,7 @@ sip_wrapper(int, __lxstat, int ver, const char *pathname, struct stat *statbuf) 
  */
 sip_wrapper(int, fstatvfs, int fd, struct statvfs *buf) {
 
-	sip_info("Intercepted fstatvfs call with fd: %d\n", fd);
+	// sip_info("Intercepted fstatvfs call with fd: %d\n", fd);
 	
 	if (SIP_IS_LOWI) {
 
@@ -455,7 +455,7 @@ sip_wrapper(int, fstatvfs, int fd, struct statvfs *buf) {
 
 	if (res == -1 && errno == EACCES && SIP_IS_LOWI) {
 		// TODO: FORWARD REQUEST TO DELEGATOR.
-		sip_info("Would forward fstatvfs request with path %s\n", fd);
+		// sip_info("Would forward fstatvfs request with path %s\n", fd);
 	}
 
 	return res;
@@ -473,7 +473,7 @@ sip_wrapper(int, fstatvfs, int fd, struct statvfs *buf) {
  */
 sip_wrapper(int, statvfs, const char *path, struct statvfs *buf) {
 
-	sip_info("Intercepted statvfs call with path: %s\n", path);
+	// sip_info("Intercepted statvfs call with path: %s\n", path);
 	
 	if (SIP_IS_LOWI) {
 
@@ -492,7 +492,7 @@ sip_wrapper(int, statvfs, const char *path, struct statvfs *buf) {
 
 	if (res == -1 && errno == EACCES && SIP_IS_LOWI) {
 		// TODO: FORWARD REQUEST TO DELEGATOR.
-		sip_info("Would forward statvfs request with path %s\n", path);
+		// sip_info("Would forward statvfs request with path %s\n", path);
 	}
 
 	return res;
@@ -508,7 +508,7 @@ sip_wrapper(int, statvfs, const char *path, struct statvfs *buf) {
  */
 sip_wrapper(int, link, const char *oldpath, const char *newpath) {
 
-	sip_info("Intercepted link call with oldpath: %s, newpath: %s\n", oldpath, newpath);
+	// sip_info("Intercepted link call with oldpath: %s, newpath: %s\n", oldpath, newpath);
 
 	return linkat(AT_FDCWD, oldpath, AT_FDCWD, newpath, AT_SYMLINK_FOLLOW);
 }
@@ -523,7 +523,7 @@ sip_wrapper(int, link, const char *oldpath, const char *newpath) {
  */
 sip_wrapper(int, linkat, int olddirfd, const char *oldpath, int newdirfd, const char *newpath, int flags) {
 
-	sip_info("Intercepted linkat call with olddir: %d, oldpath: %s, newdir: %d, newpath: %s\n", olddirfd, oldpath, newdirfd, newpath);
+	// sip_info("Intercepted linkat call with olddir: %d, oldpath: %s, newdir: %d, newpath: %s\n", olddirfd, oldpath, newdirfd, newpath);
 
 	_linkat = sip_find_sym("linkat");
 
@@ -532,7 +532,7 @@ sip_wrapper(int, linkat, int olddirfd, const char *oldpath, int newdirfd, const 
 	if(res == -1 && errno == EACCES && SIP_IS_LOWI) {
 		// TODO: SEND REQUEST TO DELEGATOR. UPDATE ERRNO/RV ON RESPONSE.
 		// HOW TO DO THIS WITHOUT COPYING THE PIP SOLUTION ONE-FOR-ONE...?
-		sip_info("Would delegate linkat on %s\n", olddirfd);
+		// sip_info("Would delegate linkat on %s\n", olddirfd);
 	}
 
 	return res;
@@ -574,7 +574,7 @@ sip_wrapper(int, mkdirat, int dirfd, const char *pathname, mode_t mode) {
 
 	if (rv == -1 && errno == EACCES && SIP_IS_LOWI) {
 		// TODO: DELEGATE REQUEST
-		sip_info("Would delegate mkdirat request with pathname %s\n", pathname);
+		// sip_info("Would delegate mkdirat request with pathname %s\n", pathname);
 	}
 	return rv;
 }
@@ -612,7 +612,7 @@ sip_wrapper(int, __xmknodat, int ver, int dirfd, const char *pathname, mode_t mo
 
 	if (rv == -1 && (errno == EACCES || errno == EPERM) && SIP_IS_LOWI) {
 		// TODO: DELEGATE TO HELPER AND UPDATE RV/ERRNO ACCORDINGLY
-		sip_info("Would delegate __xmknodat request with pathname %s to helper.\n", pathname);
+		// sip_info("Would delegate __xmknodat request with pathname %s to helper.\n", pathname);
 	}
 	return rv;
 }
@@ -670,14 +670,14 @@ sip_wrapper(int, openat, int dirfd, const char * __file, int __oflag, ...) {
 	if (__oflag & O_CREAT || __oflag & O_TMPFILE)
 		mode = va_arg(args, mode_t);
 
-	sip_info("intercepted open call with file=%s, flags=%d, mode=%d\n", __file, __oflag, mode);
+	// sip_info("intercepted open call with file=%s, flags=%d, mode=%d\n", __file, __oflag, mode);
 
 	/* NOTE: Check if the calling process is trusted or untrusted. If untrusted . */
 	if(SIP_IS_HIGHI) {
 
 
 		if(SIP_LV_LOW == sip_path_to_level(__file)) {
-			sip_info("Denied read/write/exec permissions on low integrity file %s\n", __file);
+			// sip_info("Denied read/write/exec permissions on low integrity file %s\n", __file);
 			errno = EACCES;
 			return -1;
 		} 
@@ -694,7 +694,7 @@ sip_wrapper(int, openat, int dirfd, const char * __file, int __oflag, ...) {
 	if(res == -1 && errno == EACCES && SIP_IS_LOWI) {
 		// TODO: SEND REQUEST TO DELEGATOR. UPDATE ERRNO/RV ON RESPONSE.
 		// HOW TO DO THIS WITHOUT COPYING THE PIP SOLUTION ONE-FOR-ONE...?
-		sip_info("Would delegate openat on %s\n", __file);
+		// sip_info("Would delegate openat on %s\n", __file);
 	}
 	return res;
 }
@@ -711,13 +711,13 @@ sip_wrapper(int, openat, int dirfd, const char * __file, int __oflag, ...) {
  */
 sip_wrapper(ssize_t, readlinkat, int dirfd, const char *pathname, char *buf, size_t bufsiz) {
 
-    sip_info("Intercepted readlinkat call with dirfd: %d, pathname: %s, bufsiz: %lu\n", dirfd, pathname, bufsiz);
+    // sip_info("Intercepted readlinkat call with dirfd: %d, pathname: %s, bufsiz: %lu\n", dirfd, pathname, bufsiz);
 
     /* To avoid compiler warnings, created a copy of pathname we can modify */
     char *redirected_path = strdup(pathname);
 
     if (redirected_path == NULL) {
-    	sip_error("readlinkat aborted: out of memory.\n");
+    	// sip_error("readlinkat aborted: out of memory.\n");
     	return -1;
     }
 
@@ -759,8 +759,8 @@ sip_wrapper(ssize_t, readlink, const char *pathname, char *buf, size_t bufsiz) {
  */
 sip_wrapper(int, renameat2, int olddirfd, const char *oldpath, int newdirfd, const char *newpath, unsigned int flags) {
 
-    sip_info("Intercepted renameatat2 call with olddirfd: %s, oldpath: %s, newdirfd: %d, newpath: %s, flags: %d\n", 
-    	olddirfd, oldpath, newdirfd, newpath, flags);
+    // sip_info("Intercepted renameatat2 call with olddirfd: %s, oldpath: %s, newdirfd: %d, newpath: %s, flags: %d\n", 
+    	// olddirfd, oldpath, newdirfd, newpath, flags);
 
 	_renameat2 = sip_find_sym("renameat2");
 
@@ -769,7 +769,7 @@ sip_wrapper(int, renameat2, int olddirfd, const char *oldpath, int newdirfd, con
 	if(res == -1 && errno == EACCES && SIP_IS_LOWI) {
 		// TODO: SEND REQUEST TO DELEGATOR. UPDATE ERRNO/RV ON RESPONSE.
 		// HOW TO DO THIS WITHOUT COPYING THE PIP SOLUTION ONE-FOR-ONE...?
-		sip_info("Would delegate renameat on %s\n", olddirfd);
+		// sip_info("Would delegate renameat on %s\n", olddirfd);
 	}
 
 	return res;
@@ -813,7 +813,7 @@ sip_wrapper(int, rename, const char *oldpath, const char *newpath) {
  */
 sip_wrapper(int, rmdir, const char *pathname) {
 
-	sip_info("Intercepted rmdir call with path: %s\n", pathname);
+	// sip_info("Intercepted rmdir call with path: %s\n", pathname);
 
     if(SIP_LV_LOW) {
 		// *pathname = sip_convert_if(pathname); 
@@ -836,7 +836,7 @@ sip_wrapper(int, rmdir, const char *pathname) {
  */
 sip_wrapper(int, symlink, const char *target, const char *linkpath) {
 
-	sip_info("Intercepted symlink call with target: %s, linkpath: %s\n", target, linkpath);
+	// sip_info("Intercepted symlink call with target: %s, linkpath: %s\n", target, linkpath);
 
     return symlinkat(target, AT_FDCWD, linkpath);
 }
@@ -851,7 +851,7 @@ sip_wrapper(int, symlink, const char *target, const char *linkpath) {
  */
 sip_wrapper(int, symlinkat, const char *target, int newdirfd, const char *linkpath) {
 
-	sip_info("Intercepted symlinkat call with target: %s, newdirfd: %d, linkpath: %s\n", target, newdirfd, linkpath);
+	// sip_info("Intercepted symlinkat call with target: %s, newdirfd: %d, linkpath: %s\n", target, newdirfd, linkpath);
 
     _symlinkat = sip_find_sym("symlinkat");
 
@@ -860,7 +860,7 @@ sip_wrapper(int, symlinkat, const char *target, int newdirfd, const char *linkpa
     if(res == -1 && errno == EACCES && SIP_IS_LOWI) {
 		// TODO: SEND REQUEST TO DELEGATOR. UPDATE ERRNO/RV ON RESPONSE.
 		// HOW TO DO THIS WITHOUT COPYING THE PIP SOLUTION ONE-FOR-ONE...?
-		sip_info("Would delegate linkat on %s\n", target);
+		// sip_info("Would delegate linkat on %s\n", target);
 	}
 
     return res;
@@ -876,7 +876,7 @@ sip_wrapper(int, symlinkat, const char *target, int newdirfd, const char *linkpa
  */
 sip_wrapper(int, unlink, const char *pathname) {
 
-	sip_info("Intercepted unlink call with path: %s\n", pathname);
+	// sip_info("Intercepted unlink call with path: %s\n", pathname);
 
     return unlinkat(AT_FDCWD, pathname, AT_SYMLINK_FOLLOW);
 }
@@ -894,7 +894,7 @@ sip_wrapper(int, unlink, const char *pathname) {
  */
 sip_wrapper(int, unlinkat, int dirfd, const char *pathname, int flags) {
 
-	sip_info("Intercepted unlinkat call with dirfd: %d, path: %s, flags: %d\n", dirfd, pathname, flags);
+	// sip_info("Intercepted unlinkat call with dirfd: %d, path: %s, flags: %d\n", dirfd, pathname, flags);
 
     if(SIP_LV_LOW) {
 		// *pathname = sip_convert_if(pathname); 
@@ -928,7 +928,7 @@ sip_wrapper(int, utime, const char *path, const struct utimbuf *times) {
 
     if (rv == -1 && (errno == EACCES || errno == EPERM) && SIP_IS_LOWI) {
     	// TODO: FORWARD TO DELEGATOR.
-    	sip_info("Would redirect utime request with path %s.\n", path);
+    	// sip_info("Would redirect utime request with path %s.\n", path);
     }
     return rv;
 }
@@ -956,7 +956,7 @@ sip_wrapper(int, utimes, const char *filename, const struct timeval times[2]) {
 
     if (rv == -1 && (errno == EACCES || errno == EPERM) && SIP_IS_LOWI) {
     	// TODO: FORWARD TO DELEGATOR.
-    	sip_info("Would redirect utimes request with path %s.\n", filename);
+    	// sip_info("Would redirect utimes request with path %s.\n", filename);
     }
     return rv;
 }
@@ -984,7 +984,7 @@ sip_wrapper(int, utimensat, int dirfd, const char *pathname, const struct timesp
 
     if (rv == -1 && (errno == EACCES || errno == EPERM) && SIP_IS_LOWI) {
     	// TODO: FORWARD TO DELEGATOR.
-    	sip_info("Would redirect utimensat request with path %s.\n", pathname);
+    	// sip_info("Would redirect utimensat request with path %s.\n", pathname);
     }
     return rv;
 }
@@ -1012,7 +1012,7 @@ sip_wrapper(int, futimens, int fd, const struct timespec times[2]) {
 
     if (rv == -1 && (errno == EACCES || errno == EPERM) && SIP_IS_LOWI) {
     	// TODO: FORWARD TO DELEGATOR.
-    	sip_info("Would redirect futimens request with descriptor %d.\n", fd);
+    	// sip_info("Would redirect futimens request with descriptor %d.\n", fd);
     }
     return rv;
 }
@@ -1038,7 +1038,7 @@ sip_wrapper(int, bind, int sockfd, const struct sockaddr *addr, socklen_t addrle
     	
     	if (addr->sa_family == AF_LOCAL) {
 			// TODO: FORWARD TO DELEGATOR.
-	    	sip_info("Would redirect bind request with descriptor %d.\n", sockfd);
+	    	// sip_info("Would redirect bind request with descriptor %d.\n", sockfd);
 	    }
     }
  
@@ -1064,7 +1064,7 @@ sip_wrapper(int, connect, int sockfd, const struct sockaddr *addr, socklen_t add
     	
     	if (addr->sa_family == AF_LOCAL && sip_is_named_sock(addr, addrlen)) {
     		// TODO: FORWARD TO DELEGATOR.
-	    	sip_info("Would redirect connect request with descriptor %d.\n", sockfd);
+	    	// sip_info("Would redirect connect request with descriptor %d.\n", sockfd);
     	}
     }
 
@@ -1107,12 +1107,12 @@ sip_wrapper(int, accept4, int sockfd, struct sockaddr *addr, socklen_t *addrlen,
     								  sip_gid_to_level(peercreds.gid));
 
     	if (sip_is_daemon() || peerlevel == sip_level()) {
-    		sip_info("Allowing accept4 on socket %d: peer levels match.\n", newfd);
+    		// sip_info("Allowing accept4 on socket %d: peer levels match.\n", newfd);
     		goto allow;
     	}
 
 deny:
-		sip_info("Denying accept4 on socket %d: peer levels do not match.", newfd);
+		// sip_info("Denying accept4 on socket %d: peer levels do not match.", newfd);
 
 		close(newfd);
 		errno = ECONNABORTED;
@@ -1150,7 +1150,7 @@ sip_wrapper(int, msgget, key_t key, int msgflg) {
 		int statres = msgctl(msgid, IPC_STAT, &msq);
 
 		if (statres == -1) {
-			sip_info("Denying msgget request: failed to get peer credentials.\n");
+			// sip_info("Denying msgget request: failed to get peer credentials.\n");
 			errno = EACCES;
 			return -1;
 		}
@@ -1159,7 +1159,7 @@ sip_wrapper(int, msgget, key_t key, int msgflg) {
 		int glevel = sip_gid_to_level(msq.msg_perm.cgid);
 
 		if (sip_level() != sip_level_min(ulevel, glevel)) {
-			sip_info("Denying msgget request: peer integrity levels don't match.\n");
+			// sip_info("Denying msgget request: peer integrity levels don't match.\n");
 			errno = EACCES;
 			return -1;
 		}
@@ -1188,7 +1188,7 @@ sip_wrapper(int, shmget, key_t key, size_t size, int shmflg) {
 		int statres = shmctl(shmid, IPC_STAT, &shm);
 
 		if (statres == -1) {
-			sip_info("Denying shmget request: failed to get peer credentials.\n");
+			// sip_info("Denying shmget request: failed to get peer credentials.\n");
 			errno = EACCES;
 			return -1;
 		}
@@ -1197,7 +1197,7 @@ sip_wrapper(int, shmget, key_t key, size_t size, int shmflg) {
 		int glevel = sip_gid_to_level(shm.shm_perm.cgid);
 
 		if (sip_level() != sip_level_min(ulevel, glevel)) {
-			sip_info("Denying shmget request: peer integrity levels don't match.\n");
+			// sip_info("Denying shmget request: peer integrity levels don't match.\n");
 			errno = EACCES;
 			return -1;
 		}
