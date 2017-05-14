@@ -3,6 +3,7 @@
 #include <sys/socket.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <unistd.h>
 #include "handlers.h"
 #include "logger.h"
 #include "level.h"
@@ -21,6 +22,15 @@ void handle_delegatortest(struct sip_request_test *request, struct sip_response 
  */
 void handle_faccessat(struct sip_request_faccessat *request, struct sip_response *response) {
 	// TODO
+
+	if(SIP_LV_HIGH == sip_path_to_level(request->pathname) && ((request->mode) & W_OK == 0)) {
+			response->rv = -1;
+			response->err = EACCESS;
+			return;
+	}
+	
+	response->rv = faccessat(request->pathname, request->mode, request->flags);
+	response->err = errno;
 }
 
 /**
@@ -28,6 +38,14 @@ void handle_faccessat(struct sip_request_faccessat *request, struct sip_response
  */
 void handle_fchmodat(struct sip_request_fchmodat *request, struct sip_response *response) {
 	// TODO
+	if(SIP_LV_LOW == sip_path_to_level(request->pathname)) {
+
+		response->rv = fchmodat(request->pathname, request->mode, request->flags);
+		response->err = errno;
+		return;
+	}
+	response->rv = -1;
+	response-err = EACCESS;
 }
 
 /**
@@ -35,6 +53,14 @@ void handle_fchmodat(struct sip_request_fchmodat *request, struct sip_response *
  */
 void handle_fchownat(struct sip_request_fchownat *request, struct sip_response *response) {
 	// TODO
+	if(SIP_LV_LOW == sip_path_to_level(request->pathname)) {
+
+		response->rv = fchchownat(request->pathname, request->owner, request->group, request->flags);
+		response->err = errno;
+		return;
+	}
+	response->rv = -1;
+	response-err = EACCESS;
 }
 
 /**
@@ -42,6 +68,7 @@ void handle_fchownat(struct sip_request_fchownat *request, struct sip_response *
  */
 void handle_fstatat(struct sip_request_fstatat *request, struct sip_response *response) {
 	// TODO
+	
 }
 
 /**
