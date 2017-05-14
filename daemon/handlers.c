@@ -4,6 +4,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/statvfs.h>
 
 
 /**
@@ -43,7 +44,7 @@ void handle_fchmodat(struct sip_request_fchmodat *request, struct sip_response *
 		return;
 	}
 	response->rv = -1;
-	response-err = EACCESS;
+	response->err = EACCESS;
 }
 
 /**
@@ -53,12 +54,12 @@ void handle_fchownat(struct sip_request_fchownat *request, struct sip_response *
 	// TODO
 	if(SIP_LV_LOW == sip_path_to_level(request->pathname)) {
 
-		response->rv = fchchownat(request->pathname, request->owner, request->group, request->flags);
+		response->rv = fchownat(request->pathname, request->owner, request->group, request->flags);
 		response->err = errno;
 		return;
 	}
 	response->rv = -1;
-	response-err = EACCESS;
+	response->err = EACCESS;
 }
 
 /**
@@ -66,7 +67,8 @@ void handle_fchownat(struct sip_request_fchownat *request, struct sip_response *
  */
 void handle_fstatat(struct sip_request_fstatat *request, struct sip_response *response) {
 	// TODO
-	
+	response->rv = fstatat(request->pathname, request->flags);
+	response->err = errno;
 }
 
 /**
@@ -74,6 +76,8 @@ void handle_fstatat(struct sip_request_fstatat *request, struct sip_response *re
  */
 void handle_statvfs(struct sip_request_statvfs *request, struct sip_response *response) {
 	// TODO
+	response->rv = statvfs(request->pathname);
+	response->err = errno;
 }
 
 /**
@@ -81,6 +85,14 @@ void handle_statvfs(struct sip_request_statvfs *request, struct sip_response *re
  */
 void handle_linkat(struct sip_request_linkat *request, struct sip_response *response) {
 	// TODO
+	//check if oldpath is high if it is deny
+	if(SIP_LV_HIGH == sip_path_to_level(request->oldpath)){
+		response->rv = -1;
+		response->err = EACCESS;
+		return;
+	}
+	response->rv = linkat(response->oldpath, response->newpath, response->flags);
+	response->err = errno;
 }
 
 /**
@@ -88,6 +100,9 @@ void handle_linkat(struct sip_request_linkat *request, struct sip_response *resp
  */
 void handle_mkdirat(struct sip_request_mkdirat *request, struct sip_response *response) {
 	// TODO
+	// Allow for all
+	response->rv = mkdirat(request->pathname, request->mode);
+	response->err = errno;
 }
 
 /**
@@ -95,6 +110,9 @@ void handle_mkdirat(struct sip_request_mkdirat *request, struct sip_response *re
  */
 void handle_mknodat(struct sip_request_mknodat *request, struct sip_response *response) {
 	// TODO
+	// Allow for all
+	response->rv = mknodat(request->pathname, request->mode, request->dev);
+	response->err = errno;
 }
 
 /**
