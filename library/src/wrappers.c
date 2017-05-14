@@ -35,7 +35,6 @@
  * LOW           | If request fails with errno EACCES, forward to delegator.
  * ---------------------------------------------------------------------------
  */
-
 sip_wrapper(int, faccessat, int dirfd, const char *pathname, int mode, int flags) {
 
 	sip_info("Intercepted faccessat call with dirfd: %d, path: %s, mode: %d, flags: %d\n", dirfd, pathname, mode, flags);
@@ -72,9 +71,7 @@ sip_wrapper(int, faccessat, int dirfd, const char *pathname, int mode, int flags
  * Redirects to faccessat().
  * ---------------------------------------------------------------------------
  */
-
 sip_wrapper(int, access, const char *pathname, int mode) {
-
 	return faccessat(AT_FDCWD, pathname, mode, 0);
 }
 
@@ -88,7 +85,6 @@ sip_wrapper(int, access, const char *pathname, int mode) {
  * LOW           | If request fails with errno EACCES or EPERM, forward to delegator.
  * ---------------------------------------------------------------------------
  */
-
 sip_wrapper(int, fchmodat, int dirfd, const char *pathname, mode_t mode, int flags) {
 
 	sip_info("Intercepted fchmodat call with dirfd: %d, path: %s, mode: %d, flags: %d\n", dirfd, pathname, mode, flags);
@@ -99,7 +95,7 @@ sip_wrapper(int, fchmodat, int dirfd, const char *pathname, mode_t mode, int fla
 
 	if (rv == -1 && (errno == EACCES || errno == EPERM) && SIP_IS_LOWI) {
 		// TODO: SEND REQUEST TO DELEGATOR. UPDATE ERRNO/RV ON RESPONSE.
-		sip_info("Would delegate faccessat on %s\n", pathname);
+		sip_info("Would delegate fchmodat on %s\n", pathname);
 	}
 	return rv;
 }
@@ -107,7 +103,6 @@ sip_wrapper(int, fchmodat, int dirfd, const char *pathname, mode_t mode, int fla
 /**
  * Wrapper for chmod(2). Redirects to fchmodat(2).
  */
-
 sip_wrapper(int, chmod, const char *pathname, mode_t mode) {
 	return fchmodat(AT_FDCWD, pathname, mode, 0);
 }
@@ -115,7 +110,6 @@ sip_wrapper(int, chmod, const char *pathname, mode_t mode) {
 /**
  * Basic wrapper for fchmod(2). Redirects to fchmodat(2).
  */
-
 sip_wrapper(int, fchmod, int fd, mode_t mode) {
 	char* path = sip_fd_to_path(fd);
 
@@ -140,7 +134,6 @@ sip_wrapper(int, fchmod, int fd, mode_t mode) {
  * LOW           | Delegate to helper if request fails with EACCES or EPERM.
  * ---------------------------------------------------------------------------
  */
-
 sip_wrapper(int, fchownat, int dirfd, const char *pathname, uid_t owner, gid_t group, int flags) {
 
 	sip_info("Intercepted fchownat call with dirfd: %d, path: %s, uid: %lu, gid: %lu, flags: %d\n", dirfd, pathname, owner, group, flags);
@@ -426,49 +419,11 @@ sip_wrapper(int, __lxstat, int ver, const char *pathname, struct stat *statbuf) 
 }
 
 /**
- * Wrapper for fstatvfs(3). Enforces the following process:
- *
- * PROCESS LEVEL | ACTION
- * ---------------------------------------------------------------------------
- * HIGH          | 
- * ---------------------------------------------------------------------------
- * LOW           | 
- * ---------------------------------------------------------------------------
- */
-sip_wrapper(int, fstatvfs, int fd, struct statvfs *buf) {
-
-	sip_info("Intercepted fstatvfs call with fd: %d\n", fd);
-	
-	if (SIP_IS_LOWI) {
-
-		// *fd = sip_convert_fd_if(*fd); 
-	}
-
-	_fstatvfs = sip_find_sym("fstatvfs");
-
-    int res = _fstatvfs(fd, buf);
-
-    // TODO: FIX. BUF IS NOT A STRING.
-    // if(sip_is_redirect(buf) == 1) {
-    	// *buf = sip_revert_path(buf);
-    // }
-
-	if (res == -1 && errno == EACCES && SIP_IS_LOWI) {
-		// TODO: FORWARD REQUEST TO DELEGATOR.
-		sip_info("Would forward fstatvfs request with path %s\n", fd);
-	}
-
-	return res;
-}
-
-/**
  * Wrapper for statvfs(3). Enforces the following process:
  *
  * PROCESS LEVEL | ACTION
  * ---------------------------------------------------------------------------
- * HIGH          | 
- * ---------------------------------------------------------------------------
- * LOW           | 
+ * LOW           | Delegate if call fails due to lack of permissions.
  * ---------------------------------------------------------------------------
  */
 sip_wrapper(int, statvfs, const char *path, struct statvfs *buf) {
@@ -476,19 +431,12 @@ sip_wrapper(int, statvfs, const char *path, struct statvfs *buf) {
 	sip_info("Intercepted statvfs call with path: %s\n", path);
 	
 	if (SIP_IS_LOWI) {
-
-		// *path = sip_convert_if(path); 
+		// path = sip_convert_to_redirected_path(path); 
 	}
 
 	_statvfs = sip_find_sym("statvfs");
 
     int res = _statvfs(path, buf);
-
-    // TODO: FIX. BUF IS NOT A STRING.
-    // if(sip_is_redirect(buf) == 1) {
-
-    // 	*buf = sip_revert_path(buf);
-    // }
 
 	if (res == -1 && errno == EACCES && SIP_IS_LOWI) {
 		// TODO: FORWARD REQUEST TO DELEGATOR.
@@ -499,18 +447,29 @@ sip_wrapper(int, statvfs, const char *path, struct statvfs *buf) {
 }
 
 /**
- * Wrapper for link(2). Enforces the following policy:
+ * Wrapper for fstatvfs(3). Enforces the following process:
  *
  * PROCESS LEVEL | ACTION
  * ---------------------------------------------------------------------------
- * Send to linkat()
+ * ALL           | Forward to statvfs.
  * ---------------------------------------------------------------------------
  */
-sip_wrapper(int, link, const char *oldpath, const char *newpath) {
+sip_wrapper(int, fstatvfs, int fd, struct statvfs *buf) {
 
-	sip_info("Intercepted link call with oldpath: %s, newpath: %s\n", oldpath, newpath);
+	char* path = sip_fd_to_path(fd);
 
-	return linkat(AT_FDCWD, oldpath, AT_FDCWD, newpath, AT_SYMLINK_FOLLOW);
+	if (path == NULL)
+		return -1;
+
+	if (SIP_IS_LOWI) {
+		// path = sip_convert_to_redirected_path(path); 
+	}
+
+	_fstatvfs = sip_find_sym("fstatvfs");
+
+    int res = statvfs(path, buf);
+    free(path);
+    return res;
 }
 
 /**
@@ -539,16 +498,15 @@ sip_wrapper(int, linkat, int olddirfd, const char *oldpath, int newdirfd, const 
 }
 
 /**
- * Wrapper for mkdir(2). Enforces the following policies:
+ * Wrapper for link(2). Enforces the following policy:
  *
  * PROCESS LEVEL | ACTION
  * ---------------------------------------------------------------------------
- * Redirects to mkdirat().
+ * Send to linkat()
  * ---------------------------------------------------------------------------
  */
-sip_wrapper(int, mkdir, const char *pathname, mode_t mode) {
-
-	return mkdirat(AT_FDCWD, pathname, mode);
+sip_wrapper(int, link, const char *oldpath, const char *newpath) {
+	return linkat(AT_FDCWD, oldpath, AT_FDCWD, newpath, AT_SYMLINK_FOLLOW);
 }
 
 /**
@@ -580,13 +538,15 @@ sip_wrapper(int, mkdirat, int dirfd, const char *pathname, mode_t mode) {
 }
 
 /**
- * Wrapper for mknod(2). Redirects to mknodat(2).
+ * Wrapper for mkdir(2). Enforces the following policies:
  *
- * NOTE: __xmknod is the name libc uses internally for mknod.
+ * PROCESS LEVEL | ACTION
+ * ---------------------------------------------------------------------------
+ * Redirects to mkdirat().
+ * ---------------------------------------------------------------------------
  */
-
-sip_wrapper(int, __xmknod, int ver, const char *pathname, mode_t mode, dev_t *dev) {
-	return __xmknodat(ver, AT_FDCWD, pathname, mode, dev);
+sip_wrapper(int, mkdir, const char *pathname, mode_t mode) {
+	return mkdirat(AT_FDCWD, pathname, mode);
 }
 
 /**
@@ -615,6 +575,16 @@ sip_wrapper(int, __xmknodat, int ver, int dirfd, const char *pathname, mode_t mo
 		sip_info("Would delegate __xmknodat request with pathname %s to helper.\n", pathname);
 	}
 	return rv;
+}
+
+/**
+ * Wrapper for mknod(2). Redirects to mknodat(2).
+ *
+ * NOTE: __xmknod is the name libc uses internally for mknod.
+ */
+
+sip_wrapper(int, __xmknod, int ver, const char *pathname, mode_t mode, dev_t *dev) {
+	return __xmknodat(ver, AT_FDCWD, pathname, mode, dev);
 }
 
 /**
@@ -675,13 +645,13 @@ sip_wrapper(int, openat, int dirfd, const char * __file, int __oflag, ...) {
 	/* NOTE: Check if the calling process is trusted or untrusted. If untrusted . */
 	if(SIP_IS_HIGHI) {
 
-
 		if(SIP_LV_LOW == sip_path_to_level(__file)) {
 			sip_info("Denied read/write/exec permissions on low integrity file %s\n", __file);
 			errno = EACCES;
 			return -1;
-		} 
+		}
 	}
+
 	/* Destory va list */
 	va_end(args);
 
@@ -815,8 +785,8 @@ sip_wrapper(int, rmdir, const char *pathname) {
 
 	sip_info("Intercepted rmdir call with path: %s\n", pathname);
 
-    if(SIP_LV_LOW) {
-		// *pathname = sip_convert_if(pathname); 
+    if (SIP_LV_LOW) {
+		// pathname = sip_convert_to_redirected_path(pathname); 
 	}
 
     _rmdir = sip_find_sym("rmdir");
@@ -824,21 +794,6 @@ sip_wrapper(int, rmdir, const char *pathname) {
     int res = _rmdir(pathname);
 
     return res;
-}
-
-/**
- * Wrapper for symlink(2). Enforces the following policy:
- *
- * PROCESS LEVEL | ACTION
- * ---------------------------------------------------------------------------
- * Redirect call to symlinkat
- * ---------------------------------------------------------------------------
- */
-sip_wrapper(int, symlink, const char *target, const char *linkpath) {
-
-	sip_info("Intercepted symlink call with target: %s, linkpath: %s\n", target, linkpath);
-
-    return symlinkat(target, AT_FDCWD, linkpath);
 }
 
 /**
@@ -857,7 +812,7 @@ sip_wrapper(int, symlinkat, const char *target, int newdirfd, const char *linkpa
 
     int res = _symlinkat(target, newdirfd, linkpath);
 
-    if(res == -1 && errno == EACCES && SIP_IS_LOWI) {
+    if (res == -1 && errno == EACCES && SIP_IS_LOWI) {
 		// TODO: SEND REQUEST TO DELEGATOR. UPDATE ERRNO/RV ON RESPONSE.
 		// HOW TO DO THIS WITHOUT COPYING THE PIP SOLUTION ONE-FOR-ONE...?
 		sip_info("Would delegate linkat on %s\n", target);
@@ -867,18 +822,15 @@ sip_wrapper(int, symlinkat, const char *target, int newdirfd, const char *linkpa
 }
 
 /**
- * Wrapper for unlink(2). Enforces the following policy:
+ * Wrapper for symlink(2). Enforces the following policy:
  *
  * PROCESS LEVEL | ACTION
  * ---------------------------------------------------------------------------
- * Call unlinkat() to process.
+ * Redirect call to symlinkat
  * ---------------------------------------------------------------------------
  */
-sip_wrapper(int, unlink, const char *pathname) {
-
-	sip_info("Intercepted unlink call with path: %s\n", pathname);
-
-    return unlinkat(AT_FDCWD, pathname, AT_SYMLINK_FOLLOW);
+sip_wrapper(int, symlink, const char *target, const char *linkpath) {
+    return symlinkat(target, AT_FDCWD, linkpath);
 }
 
 /**
@@ -897,12 +849,24 @@ sip_wrapper(int, unlinkat, int dirfd, const char *pathname, int flags) {
 	sip_info("Intercepted unlinkat call with dirfd: %d, path: %s, flags: %d\n", dirfd, pathname, flags);
 
     if(SIP_LV_LOW) {
-		// *pathname = sip_convert_if(pathname); 
+		// pathname = sip_convert_to_redirected_path(pathname); 
 	}
 
     _unlinkat = sip_find_sym("unlinkat");
 
     return _unlinkat(dirfd, pathname, flags);;
+}
+
+/**
+ * Wrapper for unlink(2). Enforces the following policy:
+ *
+ * PROCESS LEVEL | ACTION
+ * ---------------------------------------------------------------------------
+ * Call unlinkat() to process.
+ * ---------------------------------------------------------------------------
+ */
+sip_wrapper(int, unlink, const char *pathname) {
+    return unlinkat(AT_FDCWD, pathname, AT_SYMLINK_FOLLOW);
 }
 
 /**
