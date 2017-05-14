@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include "handlers.h"
 #include "logger.h"
+#include "level.h"
 
 /**
  * Handler for SYS_delegatortest. Simply sets the return value to 0
@@ -22,15 +23,14 @@ void handle_delegatortest(struct sip_request_test *request, struct sip_response 
  * Handler for faccessat.
  */
 void handle_faccessat(struct sip_request_faccessat *request, struct sip_response *response) {
-	// TODO
 
-	if(SIP_LV_HIGH == sip_path_to_level(request->pathname) && ((request->mode) & W_OK == 0)) {
-			response->rv = -1;
-			response->err = EACCESS;
-			return;
+	if (SIP_LV_HIGH == sip_path_to_level(request->pathname) && (request->mode & W_OK)) {
+		response->rv = -1;
+		response->err = EACCES;
+		return;
 	}
 	
-	response->rv = faccessat(request->pathname, request->mode, request->flags);
+	response->rv = faccessat(AT_FDCWD, request->pathname, request->mode, request->flags);
 	response->err = errno;
 }
 
@@ -38,30 +38,30 @@ void handle_faccessat(struct sip_request_faccessat *request, struct sip_response
  * Handler for fchmodat.
  */
 void handle_fchmodat(struct sip_request_fchmodat *request, struct sip_response *response) {
-	// TODO
-	if(SIP_LV_LOW == sip_path_to_level(request->pathname)) {
 
-		response->rv = fchmodat(request->pathname, request->mode, request->flags);
+	if(SIP_LV_LOW == sip_path_to_level(request->pathname)) {
+		response->rv = fchmodat(AT_FDCWD, request->pathname, request->mode, request->flags);
 		response->err = errno;
 		return;
 	}
+
 	response->rv = -1;
-	response-err = EACCESS;
+	response->err = EACCES;
 }
 
 /**
  * Handler for fchownat.
  */
 void handle_fchownat(struct sip_request_fchownat *request, struct sip_response *response) {
-	// TODO
-	if(SIP_LV_LOW == sip_path_to_level(request->pathname)) {
 
-		response->rv = fchchownat(request->pathname, request->owner, request->group, request->flags);
+	if(SIP_LV_LOW == sip_path_to_level(request->pathname)) {
+		response->rv = fchownat(AT_FDCWD, request->pathname, request->owner, request->group, request->flags);
 		response->err = errno;
 		return;
 	}
+
 	response->rv = -1;
-	response-err = EACCESS;
+	response->err = EACCES;
 }
 
 /**
@@ -138,7 +138,7 @@ void handle_symlinkat(struct sip_request_symlinkat *request, struct sip_response
 	}
 	// Else, allow
 	response->rv = symlinkat(request->target, AT_FDCWD, request->linkpath);
-	repsonse->err = errno;
+	response->err = errno;
 }
 
 /**
@@ -161,7 +161,7 @@ void handle_unlinkat(struct sip_request_unlinkat *request, struct sip_response *
  */
 void handle_utime(struct sip_request_utime *request, struct sip_response *response) {
 	// No private copies of files are made and this syscall will always write, so allow it
-	response->rv = utime(AT_FDCWD, request->path, request->times);
+	response->rv = utime(request->path, &request->times);
 	response->err = errno;
 }
 
@@ -170,7 +170,7 @@ void handle_utime(struct sip_request_utime *request, struct sip_response *respon
  */
 void handle_utimes(struct sip_request_utimes *request, struct sip_response *response) {
 	// No private copies of files are made and this syscall will always write, so allow it
-	response->rv = utimes(AT_FDCWD, request->filename, request->times);
+	response->rv = utimes(request->filename, request->times);
 	response->err = errno;
 }
 
@@ -179,7 +179,7 @@ void handle_utimes(struct sip_request_utimes *request, struct sip_response *resp
  */
 void handle_utimensat(struct sip_request_utimensat *request, struct sip_response *response) {
 	// No private copies of files are made and this syscall will always write, so allow it
-	response->rv = ultimenstat(AT_FDCWD, request->pathname, request->times, request->flags);
+	response->rv = utimensat(AT_FDCWD, request->pathname, request->times, request->flags);
 	response->err = errno;
 }
 
