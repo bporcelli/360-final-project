@@ -1058,7 +1058,7 @@ sip_wrapper(int, symlink, const char *target, const char *linkpath) {
  * ---------------------------------------------------------------------------
  */
 sip_wrapper(int, unlinkat, int dirfd, const char *pathname, int flags) {
-
+	
  	// if (SIP_LV_LOW) {
 	// 	pathname = sip_convert_to_redirected_path(pathname); 
 	// }

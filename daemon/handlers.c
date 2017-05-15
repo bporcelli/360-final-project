@@ -257,7 +257,7 @@ void handle_unlinkat(struct sip_request_unlinkat *request, struct sip_response *
 	// If target is high integrity, deny
 	if (sip_path_to_level(request->pathname) == SIP_LV_HIGH) {
 		response->rv = -1;
-		response->err = EBADF; // Error for invalid FD
+		response->err = EACCES; // Write access denied
 		return;
 	}
 	// Otherwise, allow

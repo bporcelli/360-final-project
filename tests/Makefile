@@ -20,7 +20,10 @@ open_test: open-files.c
 uid_test: show_getuid_and_getgid.c
 	gcc -I $(COM)/include -I $(INC) show_getuid_and_getgid.c $(INC)/test-util.c $(COM_SRC) -o $(BIN)/uid_test
 
-tests: runt_driver runt_test open_test uid_test
+unlink_test: unlink-test.c
+	gcc -I $(COM)/include -I $(INC) unlink-test.c $(INC)/test-util.c $(COM_SRC) -o $(BIN)/unlink_test
+
+tests: runt_driver runt_test open_test uid_test unlink_test
 
 all: tests
 
