@@ -5,6 +5,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <limits.h>
+#include <sys/uio.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
@@ -112,7 +113,7 @@ int sip_is_daemon() {
 	/* resolve link to executable path */
 	resolved = sip_readlink(linkpath);
 
-	if (resolved != NULL && strcmp(linkpath, SIP_DAEMON_PATH) == 0) {
+	if (resolved != NULL && strcmp(resolved, SIP_DAEMON_PATH) == 0) {
 		return 1;
 	}
 	return 0;
@@ -158,15 +159,24 @@ int sip_send_fd(int sockfd, int fd) {
 	/* prepare struct msghdr */
 	struct msghdr msg = {0};
 	struct cmsghdr *cmsg;
-	int *fdptr;
+	char *data = "test";
+	struct iovec iov[1];
+	int myfd[1], *fdptr;
+
+	myfd[0] = fd;
+
+	iov[0].iov_base = &data;
+	iov[0].iov_len = 5;
 
 	union {
 	   /* ancillary data buffer, wrapped in a union in order to ensure
 	      it is suitably aligned */
-	   char buf[CMSG_SPACE(sizeof(int))];
+	   char buf[CMSG_SPACE(sizeof myfd)];
 	   struct cmsghdr align;
 	} u;
 
+	msg.msg_iov = iov;
+	msg.msg_iovlen = 1;
 	msg.msg_control = u.buf;
 	msg.msg_controllen = sizeof u.buf;
 
@@ -175,7 +185,7 @@ int sip_send_fd(int sockfd, int fd) {
 	cmsg->cmsg_type = SCM_RIGHTS;
 	cmsg->cmsg_len = CMSG_LEN(sizeof(int));
 	fdptr = (int *) CMSG_DATA(cmsg);
-	*fdptr = fd;
+	memcpy(fdptr, &myfd, sizeof(int));
 
 	/* send */
 	if (sendmsg(sockfd, &msg, 0) <= 0) {

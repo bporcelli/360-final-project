@@ -42,8 +42,6 @@
  */
 sip_wrapper(int, faccessat, int dirfd, const char *pathname, int mode, int flags) {
 
-	sip_info("Intercepted faccessat call with dirfd: %d, path: %s, mode: %d, flags: %d\n", dirfd, pathname, mode, flags);
-
  	char *redirected_path = strdup(pathname), *temp_path;
 
  	if (redirected_path == NULL) {
@@ -122,8 +120,6 @@ sip_wrapper(int, access, const char *pathname, int mode) {
  */
 sip_wrapper(int, fchmodat, int dirfd, const char *pathname, mode_t mode, int flags) {
 
-	sip_info("Intercepted fchmodat call with dirfd: %d, path: %s, mode: %d, flags: %d\n", dirfd, pathname, mode, flags);
-
  	char *redirected_path = strdup(pathname), *temp_path;
 
  	if (redirected_path == NULL) {
@@ -200,8 +196,6 @@ sip_wrapper(int, fchmod, int fd, mode_t mode) {
  * ---------------------------------------------------------------------------
  */
 sip_wrapper(int, fchownat, int dirfd, const char *pathname, uid_t owner, gid_t group, int flags) {
-
-	sip_info("Intercepted fchownat call with dirfd: %d, path: %s, uid: %lu, gid: %lu, flags: %d\n", dirfd, pathname, owner, group, flags);
 
 	int flevel = sip_path_to_level(pathname);
 	int ulevel = sip_uid_to_level(owner);
@@ -460,8 +454,6 @@ sip_wrapper(int, execve, const char *filename, char *const argv[], char *const e
  */
 sip_wrapper(int, __fxstatat, int ver, int dirfd, const char *pathname, struct stat *statbuf, int flags) {
 
-	sip_info("Intercepted fstatat call with dirfd: %d, path: %s, flags: %d\n", dirfd, pathname, flags);
-
  	char *redirected_path = strdup(pathname), *temp_path;
 
 	if (redirected_path == NULL) {
@@ -550,8 +542,6 @@ sip_wrapper(int, __lxstat, int ver, const char *pathname, struct stat *statbuf) 
  */
 sip_wrapper(int, statvfs, const char *path, struct statvfs *buf) {
 
-	sip_info("Intercepted statvfs call with path: %s\n", path);
-	
 	/* Create copy of path we can modify */
 	char* redirected_path = strdup(path), *temp_path;
 
@@ -619,8 +609,6 @@ sip_wrapper(int, fstatvfs, int fd, struct statvfs *buf) {
  * ---------------------------------------------------------------------------
  */
 sip_wrapper(int, linkat, int olddirfd, const char *oldpath, int newdirfd, const char *newpath, int flags) {
-
-	sip_info("Intercepted linkat call with olddir: %d, oldpath: %s, newdir: %d, newpath: %s\n", olddirfd, oldpath, newdirfd, newpath);
 
 	_linkat = sip_find_sym("linkat");
 
@@ -833,8 +821,6 @@ sip_wrapper(int, openat, int dirfd, const char * __file, int __oflag, ...) {
 	if (__oflag & O_CREAT || __oflag & O_TMPFILE)
 		mode = va_arg(args, mode_t);
 
-	sip_info("intercepted openat call with file=%s, flags=%d, mode=%d\n", __file, __oflag, mode);
-
 	/* If a high integrity process tries to open a low integrity file, deny */
 	if(SIP_IS_HIGHI) {
 
@@ -891,8 +877,6 @@ sip_wrapper(int, openat, int dirfd, const char * __file, int __oflag, ...) {
  */
 sip_wrapper(ssize_t, readlinkat, int dirfd, const char *pathname, char *buf, size_t bufsiz) {
 
-    sip_info("Intercepted readlinkat call with dirfd: %d, pathname: %s, bufsiz: %lu\n", dirfd, pathname, bufsiz);
-
     /* To avoid compiler warnings, created a copy of pathname we can modify */
     char *redirected_path = strdup(pathname);
 
@@ -937,9 +921,6 @@ sip_wrapper(ssize_t, readlink, const char *pathname, char *buf, size_t bufsiz) {
  * ---------------------------------------------------------------------------
  */
 sip_wrapper(int, renameat2, int olddirfd, const char *oldpath, int newdirfd, const char *newpath, unsigned int flags) {
-
-    sip_info("Intercepted renameat2 call with olddirfd: %d, oldpath: %s, newdirfd: %d, newpath: %s, flags: %d\n",
-    		olddirfd, oldpath, newdirfd, newpath, flags);
 
 	long res = syscall(SYS_renameat2, olddirfd, oldpath, newdirfd, newpath, flags);
 
@@ -1007,8 +988,6 @@ sip_wrapper(int, rename, const char *oldpath, const char *newpath) {
  */
 sip_wrapper(int, rmdir, const char *pathname) {
 
-	sip_info("Intercepted rmdir call with path: %s\n", pathname);
-
     // if (SIP_LV_LOW) {
 	//	pathname = sip_convert_to_redirected_path(pathname); 
 	// }
@@ -1027,8 +1006,6 @@ sip_wrapper(int, rmdir, const char *pathname) {
  * ---------------------------------------------------------------------------
  */
 sip_wrapper(int, symlinkat, const char *target, int newdirfd, const char *linkpath) {
-
-	sip_info("Intercepted symlinkat call with target: %s, newdirfd: %d, linkpath: %s\n", target, newdirfd, linkpath);
 
     _symlinkat = sip_find_sym("symlinkat");
 
@@ -1081,8 +1058,6 @@ sip_wrapper(int, symlink, const char *target, const char *linkpath) {
  * ---------------------------------------------------------------------------
  */
 sip_wrapper(int, unlinkat, int dirfd, const char *pathname, int flags) {
-
-	sip_info("Intercepted unlinkat call with dirfd: %d, path: %s, flags: %d\n", dirfd, pathname, flags);
 
  	// if (SIP_LV_LOW) {
 	// 	pathname = sip_convert_to_redirected_path(pathname); 

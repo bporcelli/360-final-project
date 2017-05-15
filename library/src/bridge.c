@@ -124,17 +124,26 @@ int sip_delegate_call_fd(void *request, struct sip_response *response) {
 	int rv = sip_delegate_call(request, response);
 
 	if (rv == 0 && response->err == 0) {	/* success! expect a descriptor. */
+
 		struct msghdr msg = {0};
 		struct cmsghdr *cmsg;
-		int fd;
+		int myfd[1], *fdptr;
+		char data[5];
+		struct iovec iov[1];
+
+		/* need to transfer at least one byte of non-ancillary data */
+		iov[0].iov_base = &data;
+		iov[0].iov_len = 5;
 
 		union {
 		   /* ancillary data buffer, wrapped in a union in order to ensure
 		      it is suitably aligned */
-		   char buf[CMSG_SPACE(sizeof(int))];
+		   char buf[CMSG_SPACE(sizeof myfd)];
 		   struct cmsghdr align;
 		} u;
 
+		msg.msg_iov = iov;
+		msg.msg_iovlen = 1;
 		msg.msg_control = u.buf;
 		msg.msg_controllen = sizeof u.buf;
 
@@ -150,9 +159,12 @@ int sip_delegate_call_fd(void *request, struct sip_response *response) {
 			return -1;
 		}
 
-		fd = *(int *) CMSG_DATA(cmsg);
+		fdptr = (int *) CMSG_DATA(cmsg);
+		memcpy(&myfd, fdptr, sizeof(int));
 
-		/* transparently substitute rv with new fd, leaving errno unchanged */
-		response->rv = fd;
+		sip_info("Success! Received descriptor %d from helper.\n", myfd[0]);
+		return 0;
 	}
+
+	return -1;
 }

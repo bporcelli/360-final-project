@@ -74,7 +74,9 @@ void *handle_connection(void* arg) {
 
 		/* Based on call number, execute an appropriate handler. Note that
 		   calls that send back file descriptors need special handling, as
-		   we must sendmsg instead of send to send back the response. */ 
+		   we must sendmsg instead of send to send back the response. */
+		errno = 0;
+
 		switch (pkt_head[0]) {
 			case SYS_delegatortest:
 				handle_delegatortest(packet, &response);
@@ -149,6 +151,7 @@ void *handle_connection(void* arg) {
 		/* Send back descriptor if necessary */
 		if (respfd >= 0) {
 			if (sip_send_fd(clientfd, respfd) == 0) {
+				sip_info("Descriptor sent to client successfully.\n");
 				close(respfd);
 			}
 		}

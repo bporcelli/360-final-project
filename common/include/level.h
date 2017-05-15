@@ -1,6 +1,7 @@
 #ifndef _SIP_LEVEL_H
 #define _SIP_LEVEL_H
 
+#include <sys/stat.h>
 #include <unistd.h>
 
 #define SIP_LV_HIGH 2

@@ -208,6 +208,8 @@ void handle_openat(struct sip_request_openat *request, struct sip_response *resp
 	int writing = (request->flags & O_RDWR) || (request->flags & O_WRONLY);
 
 	if (SIP_LV_HIGH == sip_path_to_level(request->file) && writing) {
+		sip_info("High integrity file %s opened for writing. Denying.\n", request->file);
+
 		response->rv = -1;
 		response->err = EACCES;
 		return;

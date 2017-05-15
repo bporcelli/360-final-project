@@ -97,7 +97,7 @@ int main(int argc, char* argv[]) {
 		return 1;
 	}
 
-	sip_info("Running program %s as untrusted.", argv[1]);
+	sip_info("Running program %s as untrusted.\n", argv[1]);
 
 	/* Close all open benign files/pipes */
 	close_benign_files();

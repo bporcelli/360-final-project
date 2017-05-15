@@ -14,7 +14,10 @@ runt_driver: runt-driver.c
 runt_test: runt-test.c
 	gcc -I $(COM)/include -I $(INC) runt-test.c $(INC)/test-util.c $(COM_SRC) -o $(BIN)/runt_test
 
-tests: runt_driver runt_test
+open_test: open-files.c
+	gcc -I $(COM)/include -I $(INC) open-files.c $(INC)/test-util.c $(COM_SRC) -o $(BIN)/open_test
+
+tests: runt_driver runt_test open_test
 
 all: tests
 
