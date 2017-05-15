@@ -23,7 +23,10 @@ uid_test: show_getuid_and_getgid.c
 unlink_test: unlink-test.c
 	gcc -I $(COM)/include -I $(INC) unlink-test.c $(INC)/test-util.c $(COM_SRC) -o $(BIN)/unlink_test
 
-tests: runt_driver runt_test open_test uid_test unlink_test
+level_test: change-level.c
+	gcc -I $(COM)/include -I $(INC) change-level.c $(INC)/test-util.c $(COM_SRC) -o $(BIN)/level_test
+
+tests: runt_driver runt_test open_test uid_test unlink_test level_test
 
 all: tests
 
