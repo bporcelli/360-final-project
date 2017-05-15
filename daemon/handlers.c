@@ -2,13 +2,17 @@
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <sys/time.h>
+#include <sys/statvfs.h>
+#include <sys/syscall.h>
 #include <utime.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <unistd.h>
+#include <string.h>
 #include "handlers.h"
 #include "logger.h"
 #include "level.h"
+#include "common.h"
 
 /**
  * Handler for SYS_delegatortest. Simply sets the return value to 0
@@ -21,6 +25,8 @@ void handle_delegatortest(struct sip_request_test *request, struct sip_response 
 
 /**
  * Handler for faccessat.
+ *
+ * Policy: Deny write access on high integrity files.
  */
 void handle_faccessat(struct sip_request_faccessat *request, struct sip_response *response) {
 	if (SIP_LV_HIGH == sip_path_to_level(request->pathname) && (request->mode & W_OK)) {
@@ -35,82 +41,160 @@ void handle_faccessat(struct sip_request_faccessat *request, struct sip_response
 
 /**
  * Handler for fchmodat.
+ *
+ * Policy: If the target file is high integrity and can be downgraded, allow the operation
+ * to proceed. Otherwise, block it.
  */
 void handle_fchmodat(struct sip_request_fchmodat *request, struct sip_response *response) {
-	if(SIP_LV_LOW == sip_path_to_level(request->pathname)) {
-		response->rv = fchmodat(AT_FDCWD, request->pathname, request->mode, request->flags);
-		response->err = errno;
+
+	struct stat sbuf;
+
+	if (stat(request->pathname, &sbuf) < 0) {
+		sip_error("Failed to stat %s.\n", request->pathname);
+		
+		response->rv = -1;
+		response->err = EACCES;
 		return;
 	}
 
-	response->rv = -1;
-	response->err = EACCES;
+	/* If file is high integrity but can't be downgraded, don't proceed. */
+	int high_level = SIP_LV_HIGH == sip_path_to_level(request->pathname);
+	
+	if (high_level && !sip_can_downgrade_buf(&sbuf)) {
+		sip_error("Can't downgrade %s: blocking fchmodat.\n");
+
+		response->rv = -1;
+		response->err = EACCES;
+		return;
+	}
+
+	/* If file is high integrity, downgrade before change. */
+	gid_t orig_group = sbuf.st_gid;
+
+	if (high_level) {
+		if (lchown(request->pathname, -1, SIP_UNTRUSTED_USERID) < 0) {
+			sip_error("Couldn't lchown %s: aborting.\n", request->pathname);
+
+			response->rv = -1;
+			response->err = EACCES;
+			return;
+		}
+	}
+
+	/* Perform operation. */
+	response->rv = fchmodat(AT_FDCWD, request->pathname, request->mode, request->flags);
+	response->err = errno;
+
+	/* If failure and file was high integrity, restore original integrity label. */
+	if (response->rv == -1 && high_level) {
+		lchown(request->pathname, -1, orig_group);
+	}
 }
 
 /**
  * Handler for fchownat.
+ *
+ * Policy: Deny calls where the target is a high integrity file. Prevent changes in integrity
+ * label.
  */
 void handle_fchownat(struct sip_request_fchownat *request, struct sip_response *response) {
-	if(SIP_LV_LOW == sip_path_to_level(request->pathname)) {
-		response->rv = fchownat(AT_FDCWD, request->pathname, request->owner, request->group, request->flags);
-		response->err = errno;
+	
+	int orig_level = sip_path_to_level(request->pathname);
+
+	/* If target file is benign, deny outright. */
+	if (SIP_LV_HIGH == orig_level) {
+		response->rv = -1;
+		response->err = EACCES;
 		return;
 	}
 
-	response->rv = -1;
-	response->err = EACCES;
+	/* If the new integrity label doesn't match the original integrity label,
+	   deny. */
+	int olevel = sip_uid_to_level(request->owner);
+	int glevel = sip_gid_to_level(request->group);
+
+	if (sip_level_min(olevel, glevel) != orig_level) { /* Integrity label would change! */
+		response->rv = -1;
+		response->err = EACCES;
+		return;
+	}
+
+	response->rv = fchownat(AT_FDCWD, request->pathname, request->owner, request->group, request->flags);
+	response->err = errno;
 }
 
 /**
  * Handler for fstatat.
+ *
+ * Policy: Simply perform the operation with the trusted user's credentials and return
+ * the result.
  */
 void handle_fstatat(struct sip_request_fstatat *request, struct sip_response *response) {
-	// TODO
-	response->rv = fstatat(request->pathname, request->flags);
+
+	struct stat sbuf;
+
+	response->rv = fstatat(AT_FDCWD, request->pathname, &sbuf, request->flags);
 	response->err = errno;
+
+	/* If successful, we need to copy the stat buf into response->buf */
+	if (response->rv == 0) {
+		memcpy(&response->buf, &sbuf, sizeof(struct stat));
+	}
 }
 
 /**
  * Handler for statvfs.
+ *
+ * Policy: Simply perform the operation with the trusted user's credentials and
+ * return the result.
  */
 void handle_statvfs(struct sip_request_statvfs *request, struct sip_response *response) {
-	// TODO
-	response->rv = statvfs(request->pathname);
+	
+	struct statvfs sbuf;
+
+	response->rv = statvfs(request->path, &sbuf);
 	response->err = errno;
+
+	/* If successful, copy buf to response->buf */
+	if (response->rv == 0) {
+		memcpy(&response->buf, &sbuf, sizeof(struct statvfs));
+	}
 }
 
 /**
  * Handler for linkat.
+ *
+ * Policy: Deny if oldpath is high integrity.
  */
 void handle_linkat(struct sip_request_linkat *request, struct sip_response *response) {
-	// TODO
-	//check if oldpath is high if it is deny
-	if(SIP_LV_HIGH == sip_path_to_level(request->oldpath)){
+	
+	if (SIP_LV_HIGH == sip_path_to_level(request->oldpath)){
 		response->rv = -1;
-		response->err = EACCESS;
+		response->err = EACCES;
 		return;
 	}
-	response->rv = linkat(response->oldpath, response->newpath, response->flags);
+	
+	response->rv = linkat(AT_FDCWD, request->oldpath, AT_FDCWD, request->newpath, request->flags);
 	response->err = errno;
 }
 
 /**
  * Handler for mkdirat.
+ *
+ * Policy: Carry out operation with trusted credentials and return result.
  */
 void handle_mkdirat(struct sip_request_mkdirat *request, struct sip_response *response) {
-	// TODO
-	// Allow for all
-	response->rv = mkdirat(request->pathname, request->mode);
+	response->rv = mkdirat(AT_FDCWD, request->pathname, request->mode);
 	response->err = errno;
 }
 
 /**
  * Handler for mknodat.
+ *
+ * Policy: Carry out policy with trusted credentials and return result.
  */
 void handle_mknodat(struct sip_request_mknodat *request, struct sip_response *response) {
-	// TODO
-	// Allow for all
-	response->rv = mknodat(request->pathname, request->mode, request->dev);
+	response->rv = mknodat(AT_FDCWD, request->pathname, request->mode, request->dev);
 	response->err = errno;
 }
 
@@ -135,9 +219,18 @@ void handle_openat(struct sip_request_openat *request, struct sip_response *resp
 
 /**
  * Handler for renameat2.
+ *
+ * Policy: Allow rename operation if the file is untrusted.
  */
 void handle_renameat2(struct sip_request_renameat2 *request, struct sip_response *response) {
-	// TODO
+	if (SIP_LV_HIGH == sip_path_to_level(request->oldpath)) {
+		response->rv = -1;
+		response->err = EACCES;
+		return;
+	}
+
+	response->rv = syscall(SYS_renameat2, AT_FDCWD, request->oldpath, AT_FDCWD, request->newpath, request->flags);
+	response->err = errno;
 }
 
 /**

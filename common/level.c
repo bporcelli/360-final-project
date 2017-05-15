@@ -86,6 +86,31 @@ int sip_gid_to_level(gid_t gid) {
 }
 
 /**
+ * Given a stat buffer, determine whether the corresponding file can
+ * be downgraded.
+ *
+ * @param struct stat *sbuf
+ * @return 1 if file can be downgraded, otherwise 0.
+ */
+int sip_can_downgrade_buf(struct stat *sbuf) {
+	/* Can't downgrade if file is not owned by the user. */
+	if (sbuf->st_uid != SIP_REAL_USERID && sbuf->st_gid != SIP_REAL_USERID) {
+		sip_error("Tried to downgrade non-user-owned file.\n");
+		return 0;
+	}
+
+	/* Can't downgrade if group permissions are being used. */
+	if (sbuf->st_uid != sbuf->st_gid) {
+		if ((sbuf->st_mode & S_IRWXU) != (sbuf->st_mode & S_IRWXG) << 3) {
+			sip_error("Tried to downgrade file with group permissions used.\n");
+			return 0;
+		}
+	}
+
+	return 1;
+}
+
+/**
  * Attempt to downgrade the integrity level of the file with the given
  * descriptor.
  *
@@ -99,20 +124,9 @@ int sip_downgrade_fd(int fd) {
 		return -1;
 	}
 
-	if (sbuf.st_uid == SIP_UNTRUSTED_USERID || sbuf.st_gid == SIP_UNTRUSTED_USERID) {
-		sip_warning("Tried to downgrade a low integrity file.\n");
-		return 0;
-	} else if (sbuf.st_uid != SIP_REAL_USERID && sbuf.st_gid != SIP_REAL_USERID) {
-		sip_error("Tried to downgrade non-user-owned file.\n");
+	/* Can't downgrade? Bail. */
+	if (!sip_can_downgrade_buf(&sbuf)) {
 		return -1;
-	}
-
-	/* Can't downgrade if group permissions are being used. */
-	if (sbuf.st_uid != sbuf.st_gid) {
-		if ((sbuf.st_mode & S_IRWXU) != (sbuf.st_mode & S_IRWXG) << 3) {
-			sip_error("Tried to downgrade file with group permissions used.\n");
-			return -1;
-		}
 	}
 
 	/* Change group owner to untrusted group */

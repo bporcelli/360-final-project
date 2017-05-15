@@ -11,6 +11,7 @@
 
 int sip_fd_to_level(int fd);
 int sip_downgrade_fd(int fd);
+int sip_can_downgrade_buf(struct stat *sbuf);
 int sip_path_to_level(const char* path);
 int sip_uid_to_level(uid_t uid);
 int sip_gid_to_level(uid_t uid);
