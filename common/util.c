@@ -23,35 +23,23 @@
  * @return Pointer to resolved path name, or NULL on error.
  */
 static char* sip_readlink(char* linkname) {
-	struct stat sb;
-	char* resolved_path;
+	char resolved_path[PATH_MAX];
 	int rd;
 
-	/* Allocate buffer large enough to hold resolved link name + \0 */
-	if (lstat(linkname, &sb) == -1) {
-		sip_error("Failed to read link: lstat error.\n");
-		return NULL;
-	}
-	if ((resolved_path = malloc(sb.st_size + 1)) == NULL) {
-		sip_error("Failed to read link: out of memory.\n");
-		return NULL;
-	}
-
-	/* Read link -- make sure number of bytes returned is number expected. */
-	rd = readlink(linkname, resolved_path, sb.st_size + 1);
+	rd = readlink(linkname, resolved_path, PATH_MAX);
 
 	if (rd == -1) {
 		sip_error("Failed to read link %s: %s\n", linkname, strerror(errno));
 		return NULL;
 	}
-	if (rd > sb.st_size) {
-		sip_error("Failed to read link %s: link size changed between calls.\n", linkname);
+	if (rd == PATH_MAX) {
+		sip_error("Failed to read link %s: link size too large.\n", linkname);
 		return NULL;
 	}
 
 	resolved_path[rd] = '\0';
 
-	return resolved_path;
+	return strdup(resolved_path);
 }
 
 /**
@@ -66,13 +54,13 @@ static char* sip_readlink(char* linkname) {
  * @return char* Resolved path name on success, NULL on error.
  */
 char* sip_fd_to_path(int fd) {
-	char linkname[100], *resolved;
+	char linkname[PATH_MAX], *resolved;
 	int len = 0;
 
 	/* Construct link name */
-	len = snprintf(linkname, 100, "/proc/self/fd/%d", fd);
+	len = snprintf(linkname, PATH_MAX, "/proc/self/fd/%d", fd);
 	
-	if (len >= 100) {
+	if (len >= PATH_MAX) {
 		sip_error("Failed to convert %d to path: maximum link length exceeded.\n", fd);
 		return NULL;
 	}
@@ -82,6 +70,7 @@ char* sip_fd_to_path(int fd) {
 
 	if (resolved == NULL) {
 		sip_error("Failed to convert %d to path: readlink error.\n", fd);
+		return NULL;
 	}
 
 	return resolved;
