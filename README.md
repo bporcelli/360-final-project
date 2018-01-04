@@ -21,6 +21,6 @@ System Integrity Protection (SIP) has been tested (albeit in a limited fashion) 
 To use SIP, simply...
 
 1. `git clone https://github.com/bporcelli/system-integrity-protection/`
-2. `cd system-integrity-protection`
+2. `cd system-integrity-protection/install`
 3. `sudo install.sh`
 4. Use the `runt` command to execute untrusted programs, e.g. `runt rm -rf *`
